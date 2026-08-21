@@ -18,7 +18,9 @@ import ManageCategoriesModal from "../components/dashboard/ManageCategoriesModal
 export default function Dashboard() {
   const dispatch = useDispatch();
 
-  const { tasks, statusFilter, searchQuery, isLoading } = useSelector((state) => state.tasks);
+  const { tasks, statusFilter, searchQuery, isLoading } = useSelector(
+    (state) => state.tasks,
+  );
   const { selectedCategory } = useSelector((state) => state.categories);
   const { currentWorkspace } = useSelector((state) => state.workspaces);
 
@@ -40,7 +42,8 @@ export default function Dashboard() {
     const total = tasks.length;
     const completed = tasks.filter((t) => t.completed).length;
     const pending = total - completed;
-    const progressPercent = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const progressPercent =
+      total === 0 ? 0 : Math.round((completed / total) * 100);
     return { total, completed, pending, progressPercent };
   }, [tasks]);
 
@@ -75,12 +78,19 @@ export default function Dashboard() {
         {isLoading && tasks.length === 0 ? (
           <div className="py-28 flex flex-col items-center gap-3">
             <PulseMark variant="loading" className="w-32 h-7" />
-            <p className="text-xs text-[#8B8D98] font-medium">Loading your tasks…</p>
+            <p className="text-xs text-[#8B8D98] font-medium">
+              Loading your tasks…
+            </p>
           </div>
         ) : tasks.length === 0 ? (
           <div className="bg-[#FAFAF8] rounded-2xl border border-dashed border-[#D8D8D2] py-20 text-center">
             <div className="w-11 h-11 rounded-xl bg-[#EEF2FF] text-[#2F5DFF] flex items-center justify-center mx-auto mb-3 border border-[#DCE3FF]">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -97,8 +107,18 @@ export default function Dashboard() {
               onClick={() => setIsTaskModalOpen(true)}
               className="mt-4 inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               New Task
             </button>
@@ -111,7 +131,9 @@ export default function Dashboard() {
                 task={task}
                 isExpanded={expandedTaskId === task._id}
                 onToggleExpand={() =>
-                  setExpandedTaskId(expandedTaskId === task._id ? null : task._id)
+                  setExpandedTaskId(
+                    expandedTaskId === task._id ? null : task._id,
+                  )
                 }
                 onEdit={(t) => setEditingTask(t)}
                 onRequestDelete={(t) => setDeleteTaskTarget(t)}
@@ -121,9 +143,19 @@ export default function Dashboard() {
         )}
       </main>
 
-      <CreateTaskModal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} />
-      <EditTaskModal isOpen={Boolean(editingTask)} task={editingTask} onClose={() => setEditingTask(null)} />
-      <ManageCategoriesModal isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} />
+      <CreateTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+      />
+      <EditTaskModal
+        isOpen={Boolean(editingTask)}
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+      />
+      <ManageCategoriesModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
       <DeleteConfirmModal
         isOpen={Boolean(deleteTaskTarget)}
         taskTitle={deleteTaskTarget?.title || ""}

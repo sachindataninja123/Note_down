@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config();
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
 import Task from "../models/task.model.js";
@@ -16,46 +18,52 @@ cloudinary.config({
 const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
+  "image/jpg",
   "image/webp",
   "image/gif",
-  "application/pdf",
-  "text/plain",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
-// Upload Attachment to Task
 export const uploadTaskAttachment = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
-  if (!req.file) throw new ApiError(400, "No file uploaded");
-
-  // FIX: was `Task.findOne({ _id: id, owner: req.user._id })`, so workspace
-  // teammates couldn't attach files to shared tasks. Now uses the same
-  // access rule as everything else (owner OR workspace member).
-  const task = await getAccessibleTask(id, req.user);
-  if (!task) throw new ApiError(404, "Task not found");
-
-  // FIX: no server-side validation of file type/size — client could send
-  // anything. multer config may already cap size, but don't rely on that
-  // alone.
-  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
-    throw new ApiError(400, "Unsupported file type");
+  if (!mongoose.isValidObjectId(id)) {
+    throw new ApiError(400, "Invalid Task ID");
   }
+
+  if (!req.file) {
+    throw new ApiError(400, "No image uploaded");
+  }
+
+  const task = await getAccessibleTask(id, req.user);
+
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  // Image type validation
+  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
+    throw new ApiError(400, "Only image files are allowed");
+  }
+
+  // Size validation
   if (req.file.size > MAX_FILE_SIZE_BYTES) {
-    throw new ApiError(400, "File exceeds the 10MB limit");
+    throw new ApiError(400, "Image exceeds the 10MB limit");
   }
 
   const uploadResult = await new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "task_attachments", resource_type: "auto" },
+      {
+        folder: "task_attachments",
+        resource_type: "image",
+      },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
-      }
+      },
     );
+
     streamifier.createReadStream(req.file.buffer).pipe(stream);
   });
 
@@ -71,14 +79,17 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(201, task, "File uploaded successfully"));
+    .json(new ApiResponse(201, task, "Image uploaded successfully"));
 });
 
 // Delete Attachment from Task
 export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   const { id, attachmentId } = req.params;
 
-  if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(attachmentId)) {
+  if (
+    !mongoose.isValidObjectId(id) ||
+    !mongoose.isValidObjectId(attachmentId)
+  ) {
     throw new ApiError(400, "Invalid ID format");
   }
 
@@ -98,6 +109,10 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, { taskId: id, attachmentId }, "Attachment deleted successfully")
+      new ApiResponse(
+        200,
+        { taskId: id, attachmentId },
+        "Attachment deleted successfully",
+      ),
     );
 });
