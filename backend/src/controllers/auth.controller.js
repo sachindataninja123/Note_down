@@ -38,11 +38,20 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
 // --- Controllers ---
 
 export const registerUser = asyncHandler(async (req, res) => {
+    console.log("BODY:", req.body);
   const { name, password, email } = req.body || {};
+
+   console.log("NAME:", name);
+
+  console.log("EMAIL:", email);
+
+  console.log("PASSWORD:", password);
 
   if (!name || !password || !email) {
     throw new ApiError(400, "All fields are required!");
   }
+
+
 
   assertPlainString(name, "Name");
   assertPlainString(password, "Password");
