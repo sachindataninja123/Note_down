@@ -3,30 +3,22 @@ import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { setSearchQuery } from "../features/tasks/taskSlice";
 import { logout } from "../features/auth/authSlice";
-import { fetchWorkspaces, setCurrentWorkspace } from "../features/workspaces/workspaceSlice";
+import { fetchWorkspaces } from "../features/workspaces/workspaceSlice";
 import NotificationDropdown from "./dashboard/NotificationDropdown";
 import WorkspaceModal from "./dashboard/WorkspaceModal";
+import WorkspaceSwitcher from "./dashboard/WorkspaceSwitcher";
 import PulseMark from "./PulseMark";
 
 export default function Navbar({ onOpenTaskModal }) {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { searchQuery } = useSelector((state) => state.tasks);
-  const { workspaces, currentWorkspace } = useSelector((state) => state.workspaces);
 
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
   useEffect(() => {
     dispatch(fetchWorkspaces());
   }, [dispatch]);
-
-  const handleWorkspaceChange = (e) => {
-    const selected = workspaces.find((w) => w._id === e.target.value);
-    if (selected) {
-      dispatch(setCurrentWorkspace(selected));
-      toast.success(`Switched to workspace "${selected.name}"`);
-    }
-  };
 
   const getInitials = (name) => {
     if (!name) return "TP";
@@ -47,35 +39,13 @@ export default function Navbar({ onOpenTaskModal }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[24px] font-bold tracking-tight text-[#432DD7]">TaskPulse</span>
-                <PulseMark variant="brand" className="w-9 h-3.5 hidden sm:block" />
+                <PulseMark variant="brand" className="w-9 h-4 hidden sm:block" />
               </div>
-              <div className="flex items-center gap-1.5 -mt-0.5">
-                {workspaces.length > 0 ? (
-                  <select
-                    value={currentWorkspace?._id || ""}
-                    onChange={handleWorkspaceChange}
-                    className="bg-transparent text-[11px] font-semibold text-[#2F5DFF] outline-none cursor-pointer"
-                  >
-                    {workspaces.map((w) => (
-                      <option key={w._id} value={w._id} className="text-[#14151A]">
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-[11px] text-[#8B8D98]">Personal</span>
-                )}
-                <button
-                  onClick={() => setIsWorkspaceModalOpen(true)}
-                  className="text-[#8B8D98] hover:text-[#2F5DFF] transition cursor-pointer"
-                  title="Workspace Settings"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-              </div>
+              {/* FIX: this used to be a native <select> populated only from
+                  `workspaces`, so "Personal" had no entry in the list once
+                  the user belonged to any workspace — there was no way to
+                  switch back. WorkspaceSwitcher always lists Personal first. */}
+              <WorkspaceSwitcher onOpenSettings={() => setIsWorkspaceModalOpen(true)} />
             </div>
           </div>
 
@@ -104,7 +74,7 @@ export default function Navbar({ onOpenTaskModal }) {
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={onOpenTaskModal}
-              className="bg-[#2d58f1] hover:bg-[#1c44d6] active:scale-[0.97] text-white text-[13px] font-semibold px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+              className="bg-blue-600 hover:bg-blue-700 active:scale-[0.97] text-white text-[13px] font-semibold px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />

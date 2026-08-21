@@ -1,18 +1,20 @@
 import React, { useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+
 import { getProfile } from "./features/auth/authSlice";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+
 import ProtectedRoute from "./components/ProtectedRoute";
+import GuestRoute from "./components/GuestRoute";
+
 import { Toaster } from "react-hot-toast";
 
 export default function App() {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { isAuthenticated } = useSelector((state) => state.auth);
 
   useEffect(() => {
     dispatch(getProfile());
@@ -23,12 +25,22 @@ export default function App() {
       <Routes>
         <Route
           path="/login"
-          element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+          element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          }
         />
+
         <Route
           path="/register"
-          element={isAuthenticated ? <Navigate to="/" replace /> : <Register />}
+          element={
+            <GuestRoute>
+              <Register />
+            </GuestRoute>
+          }
         />
+
         <Route
           path="/"
           element={
@@ -37,6 +49,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

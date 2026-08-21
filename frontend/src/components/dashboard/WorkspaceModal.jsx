@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
-import { addWorkspace, inviteMember, deleteMember } from "../../features/workspaces/workspaceSlice";
+import {
+  addWorkspace,
+  inviteMember,
+  deleteMember,
+  removeWorkspace,
+} from "../../features/workspaces/workspaceSlice";
 import Modal, { ModalHeader } from "../Modal";
 
 const inputClass =
@@ -20,7 +25,18 @@ export default function WorkspaceModal({ isOpen, onClose }) {
   const [inviteRole, setInviteRole] = useState("member");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Two-step delete confirm: first click arms it, second click within the
+  // same view actually deletes. Avoids a dedicated extra modal for
+  // something this destructive while still preventing a stray misclick.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const isOwner = currentWorkspace?.owner?._id === user?._id || currentWorkspace?.owner === user?._id;
+
+  const resetAndClose = () => {
+    setConfirmingDelete(false);
+    onClose();
+  };
 
   const handleCreateWorkspace = async (e) => {
     e.preventDefault();
@@ -84,15 +100,41 @@ export default function WorkspaceModal({ isOpen, onClose }) {
     });
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+
+    setIsDeleting(true);
+    const promise = dispatch(removeWorkspace(currentWorkspace._id)).unwrap();
+
+    toast.promise(promise, {
+      loading: `Deleting "${currentWorkspace.name}"...`,
+      success: `"${currentWorkspace.name}" and its tasks were deleted`,
+      error: (err) => err || "Failed to delete workspace",
+    });
+
+    try {
+      await promise;
+      resetAndClose();
+    } catch {
+      // Handled by toast
+    } finally {
+      setIsDeleting(false);
+      setConfirmingDelete(false);
+    }
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
-      <ModalHeader title="Workspace Management" onClose={onClose} />
+    <Modal isOpen={isOpen} onClose={resetAndClose} size="md">
+      <ModalHeader title="Workspace Management" onClose={resetAndClose} />
       <div className="px-6 pb-6 space-y-5">
         <div className="flex bg-[#FAFAF8] p-1 rounded-xl border border-[#ECECE6]">
           <button
             onClick={() => setActiveTab("create")}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              activeTab === "create" ? "bg-blue-600 text-white" : "text-[#63656F] hover:text-[#14151A]"
+              activeTab === "create" ? "bg-blue-500 text-white" : "text-[#63656F] hover:text-[#14151A]"
             }`}
           >
             Create New Workspace
@@ -101,7 +143,7 @@ export default function WorkspaceModal({ isOpen, onClose }) {
             onClick={() => setActiveTab("members")}
             disabled={!currentWorkspace}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-40 ${
-              activeTab === "members" ? "bg-blue-600 text-white" : "text-[#63656F] hover:text-[#14151A]"
+              activeTab === "members" ? "bg-blue-500 text-white" : "text-[#63656F] hover:text-[#14151A]"
             }`}
           >
             Manage Team
@@ -134,7 +176,7 @@ export default function WorkspaceModal({ isOpen, onClose }) {
             <div className="flex justify-end gap-2.5 pt-1">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={resetAndClose}
                 className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#63656F] bg-[#F2F2EE] hover:bg-[#ECECE6] transition cursor-pointer"
               >
                 Cancel
@@ -151,7 +193,7 @@ export default function WorkspaceModal({ isOpen, onClose }) {
         )}
 
         {activeTab === "members" && currentWorkspace && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {isOwner && (
               <form onSubmit={handleInviteMember} className="flex gap-2">
                 <input
@@ -214,6 +256,45 @@ export default function WorkspaceModal({ isOpen, onClose }) {
                 </div>
               ))}
             </div>
+
+            {/* NEW: Danger zone — was entirely missing before. Owner-only,
+                and requires a second click to actually fire since this
+                cascades to deleting every task in the workspace. */}
+            {isOwner && (
+              <div className="border border-[#FFD9CB] bg-[#FFF8F6] rounded-xl p-4 space-y-2.5">
+                <p className="text-xs font-semibold text-[#E14A2C]">Danger zone</p>
+                <p className="text-[11px] text-[#8B8D98] leading-relaxed">
+                  Deleting this workspace permanently removes it and{" "}
+                  <span className="font-semibold text-[#63656F]">every task inside it</span> for all members.
+                  This cannot be undone.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleDeleteWorkspace}
+                    disabled={isDeleting}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer disabled:opacity-50 ${
+                      confirmingDelete
+                        ? "bg-[#E14A2C] text-white hover:bg-[#C93E22]"
+                        : "bg-white border border-[#FFD9CB] text-[#E14A2C] hover:bg-[#FFF1EC]"
+                    }`}
+                  >
+                    {isDeleting
+                      ? "Deleting..."
+                      : confirmingDelete
+                      ? `Confirm — delete "${currentWorkspace.name}"`
+                      : "Delete this workspace"}
+                  </button>
+                  {confirmingDelete && !isDeleting && (
+                    <button
+                      onClick={() => setConfirmingDelete(false)}
+                      className="text-xs font-semibold text-[#8B8D98] hover:text-[#14151A] cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

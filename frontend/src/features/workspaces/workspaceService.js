@@ -1,32 +1,34 @@
 import api from "../../api/axiosInstance";
 
-// GET /api/v1/workspaces
 const getWorkspaces = async () => {
-  const response = await api.get("/workspaces");
-  return response.data;
+  const res = await api.get("/workspaces");
+  return res.data;
 };
 
-// POST /api/v1/workspaces
 const createWorkspace = async (workspaceData) => {
-  const response = await api.post("/workspaces", workspaceData);
-  return response.data;
+  const res = await api.post("/workspaces", workspaceData);
+  return res.data;
 };
 
-// POST /api/v1/workspaces/:id/members
-const addMember = async (workspaceId, { email, role }) => {
-  const response = await api.post(`/workspaces/${workspaceId}/members`, { email, role });
-  return response.data;
+const deleteWorkspace = async (workspaceId) => {
+  const res = await api.delete(`/workspaces/${workspaceId}`);
+  return res.data;
 };
 
-// DELETE /api/v1/workspaces/:id/members/:memberId
+const addMember = async (workspaceId, memberData) => {
+  const res = await api.post(`/workspaces/${workspaceId}/members`, memberData);
+  return res.data;
+};
+
 const removeMember = async (workspaceId, memberId) => {
-  const response = await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);
-  return response.data;
+  const res = await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);
+  return res.data;
 };
 
 const workspaceService = {
   getWorkspaces,
   createWorkspace,
+  deleteWorkspace,
   addMember,
   removeMember,
 };
