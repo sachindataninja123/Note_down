@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import { editTask } from "../../features/tasks/taskSlice";
 
 export default function EditTaskModal({ isOpen, task, onClose }) {
@@ -28,11 +29,14 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
 
   if (!isOpen || !task) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim()) {
+      toast.error("Task title cannot be empty");
+      return;
+    }
 
-    dispatch(
+    const editPromise = dispatch(
       editTask({
         taskId: task._id,
         taskData: {
@@ -41,8 +45,20 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
           dueDate: formData.dueDate || null,
         },
       })
-    );
-    onClose();
+    ).unwrap();
+
+    toast.promise(editPromise, {
+      loading: "Saving changes...",
+      success: "Task updated successfully!",
+      error: (err) => err || "Failed to update task",
+    });
+
+    try {
+      await editPromise;
+      onClose();
+    } catch {
+      // Handled by toast.promise
+    }
   };
 
   return (
@@ -63,7 +79,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-slate-100 outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -73,7 +89,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
               rows="3"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-slate-100 outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-slate-100 outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -83,7 +99,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
               >
                 <option value="">No Category</option>
                 {categories.map((c) => (
@@ -99,7 +115,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
               >
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
@@ -114,7 +130,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
               type="date"
               value={formData.dueDate}
               onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
             />
           </div>
 

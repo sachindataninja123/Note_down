@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import { addCategory, editCategory, removeCategory } from "../../features/categories/categorySlice";
 
 export default function ManageCategoriesModal({ isOpen, onClose }) {
@@ -12,11 +13,20 @@ export default function ManageCategoriesModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    if (!newCategory.name.trim()) return;
-    dispatch(addCategory(newCategory));
-    setNewCategory({ name: "", color: "#6366F1" });
+    if (!newCategory.name.trim()) {
+      toast.error("Category name cannot be empty");
+      return;
+    }
+
+    try {
+      await dispatch(addCategory(newCategory)).unwrap();
+      toast.success(`Category "${newCategory.name}" created`);
+      setNewCategory({ name: "", color: "#6366F1" });
+    } catch (err) {
+      toast.error(err || "Failed to create category");
+    }
   };
 
   const startEdit = (cat) => {
@@ -24,10 +34,28 @@ export default function ManageCategoriesModal({ isOpen, onClose }) {
     setEditFormData({ name: cat.name, color: cat.color });
   };
 
-  const handleSaveEdit = (categoryId) => {
-    if (!editFormData.name.trim()) return;
-    dispatch(editCategory({ categoryId, categoryData: editFormData }));
-    setEditingId(null);
+  const handleSaveEdit = async (categoryId) => {
+    if (!editFormData.name.trim()) {
+      toast.error("Category name cannot be empty");
+      return;
+    }
+
+    try {
+      await dispatch(editCategory({ categoryId, categoryData: editFormData })).unwrap();
+      toast.success("Category updated");
+      setEditingId(null);
+    } catch (err) {
+      toast.error(err || "Failed to update category");
+    }
+  };
+
+  const handleDelete = async (categoryId, catName) => {
+    try {
+      await dispatch(removeCategory(categoryId)).unwrap();
+      toast.success(`Category "${catName}" deleted`);
+    } catch (err) {
+      toast.error(err || "Failed to delete category");
+    }
   };
 
   return (
@@ -40,7 +68,6 @@ export default function ManageCategoriesModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Create New Category Inline */}
         <form onSubmit={handleCreate} className="flex items-center gap-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800">
           <input
             type="color"
@@ -63,7 +90,6 @@ export default function ManageCategoriesModal({ isOpen, onClose }) {
           </button>
         </form>
 
-        {/* List & Edit Existing Categories */}
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
           {categories.length === 0 ? (
             <p className="text-xs text-slate-500 text-center py-6">No custom categories created yet.</p>
@@ -119,7 +145,7 @@ export default function ManageCategoriesModal({ isOpen, onClose }) {
                         </svg>
                       </button>
                       <button
-                        onClick={() => dispatch(removeCategory(cat._id))}
+                        onClick={() => handleDelete(cat._id, cat.name)}
                         className="text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition cursor-pointer"
                         title="Delete tag"
                       >

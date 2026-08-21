@@ -23,7 +23,7 @@ export default function Navbar({ onOpenTaskModal }) {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3.5 shrink-0">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 ring-1 ring-white/20">
+          <div className="w-11 h-11 rounded-2xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 ring-1 ring-white/20">
             <svg
               className="w-6 h-6"
               fill="none"
@@ -104,7 +104,7 @@ export default function Navbar({ onOpenTaskModal }) {
           <div className="h-6 w-px bg-slate-800 hidden sm:block"></div>
 
           <div className="flex items-center gap-3 bg-slate-950/40 p-1.5 pr-3 rounded-2xl border border-slate-800/80">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-inner">
+            <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-inner">
               {getInitials(user?.name)}
             </div>
             <div className="hidden lg:block text-left">

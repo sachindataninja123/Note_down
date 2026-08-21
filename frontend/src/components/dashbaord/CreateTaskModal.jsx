@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import { addTask } from "../../features/tasks/taskSlice";
 
 export default function CreateTaskModal({ isOpen, onClose }) {
@@ -16,20 +17,34 @@ export default function CreateTaskModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newTask.title.trim()) return;
+    if (!newTask.title.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
 
-    dispatch(
+    const taskPromise = dispatch(
       addTask({
         ...newTask,
         category: newTask.category || null,
         dueDate: newTask.dueDate || null,
       })
-    );
+    ).unwrap();
 
-    setNewTask({ title: "", description: "", category: "", priority: "Medium", dueDate: "" });
-    onClose();
+    toast.promise(taskPromise, {
+      loading: "Creating task...",
+      success: "Task created successfully!",
+      error: (err) => err || "Failed to create task",
+    });
+
+    try {
+      await taskPromise;
+      setNewTask({ title: "", description: "", category: "", priority: "Medium", dueDate: "" });
+      onClose();
+    } catch {
+      // Handled by toast.promise
+    }
   };
 
   return (

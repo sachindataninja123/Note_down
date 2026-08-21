@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
+import toast from "react-hot-toast";
 import {
   toggleTaskStatus,
   createSubtask,
@@ -28,16 +29,69 @@ export default function TaskItem({
   const completedSubtasks = task.subtasks?.filter((s) => s.completed).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
 
-  const handleAddSubtask = () => {
-    if (!subtaskInput.trim()) return;
-    dispatch(createSubtask({ taskId: task._id, title: subtaskInput.trim() }));
-    setSubtaskInput("");
+  const handleToggleStatus = async () => {
+    try {
+      await dispatch(toggleTaskStatus(task._id)).unwrap();
+      toast.success(task.completed ? "Task marked active" : "Task completed!", {
+        icon: task.completed ? "🔄" : "✅",
+      });
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleAddSubtask = async () => {
+    if (!subtaskInput.trim()) {
+      toast.error("Subtask item cannot be empty");
+      return;
+    }
+    try {
+      await dispatch(createSubtask({ taskId: task._id, title: subtaskInput.trim() })).unwrap();
+      toast.success("Subtask added");
+      setSubtaskInput("");
+    } catch {
+      toast.error("Failed to add subtask");
+    }
+  };
+
+  const handleToggleSubtask = async (subtaskId) => {
+    try {
+      await dispatch(toggleSubtaskStatus({ taskId: task._id, subtaskId })).unwrap();
+    } catch {
+      toast.error("Failed to update subtask");
+    }
+  };
+
+  const handleDeleteSubtask = async (subtaskId) => {
+    try {
+      await dispatch(removeSubtask({ taskId: task._id, subtaskId })).unwrap();
+      toast.success("Subtask removed");
+    } catch {
+      toast.error("Failed to delete subtask");
+    }
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    dispatch(uploadAttachment({ taskId: task._id, file }));
+
+    const uploadPromise = dispatch(uploadAttachment({ taskId: task._id, file })).unwrap();
+
+    toast.promise(uploadPromise, {
+      loading: `Uploading ${file.name}...`,
+      success: "Attachment uploaded successfully!",
+      error: "Failed to upload file",
+    });
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    const deletePromise = dispatch(removeAttachment({ taskId: task._id, attachmentId })).unwrap();
+
+    toast.promise(deletePromise, {
+      loading: "Removing attachment...",
+      success: "Attachment removed",
+      error: "Failed to remove attachment",
+    });
   };
 
   return (
@@ -52,7 +106,7 @@ export default function TaskItem({
         {/* Checkbox & Text */}
         <div className="flex items-start gap-4 flex-1 min-w-0">
           <button
-            onClick={() => dispatch(toggleTaskStatus(task._id))}
+            onClick={handleToggleStatus}
             className={`w-6 h-6 mt-0.5 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
               task.completed
                 ? "bg-indigo-600 border-indigo-600 text-white"
@@ -152,9 +206,10 @@ export default function TaskItem({
         </div>
       </div>
 
-      {/* Accordion: Subtasks & Attachments */}
+      {/* Accordion */}
       {isExpanded && (
         <div className="px-5 pb-5 pt-3 border-t border-slate-800/80 bg-slate-950/40 rounded-b-3xl space-y-4">
+          {/* Subtasks */}
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subtasks</span>
             <div className="mt-2 space-y-2">
@@ -167,7 +222,7 @@ export default function TaskItem({
                     <input
                       type="checkbox"
                       checked={subtask.completed}
-                      onChange={() => dispatch(toggleSubtaskStatus({ taskId: task._id, subtaskId: subtask._id }))}
+                      onChange={() => handleToggleSubtask(subtask._id)}
                       className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
                     />
                     <span
@@ -179,7 +234,7 @@ export default function TaskItem({
                     </span>
                   </div>
                   <button
-                    onClick={() => dispatch(removeSubtask({ taskId: task._id, subtaskId: subtask._id }))}
+                    onClick={() => handleDeleteSubtask(subtask._id)}
                     className="text-slate-500 hover:text-red-400 text-sm px-1 cursor-pointer"
                   >
                     &times;
@@ -225,7 +280,7 @@ export default function TaskItem({
                     📎 {att.fileName}
                   </a>
                   <button
-                    onClick={() => dispatch(removeAttachment({ taskId: task._id, attachmentId: att._id }))}
+                    onClick={() => handleDeleteAttachment(att._id)}
                     className="text-slate-500 hover:text-red-400 ml-1 cursor-pointer"
                   >
                     &times;
