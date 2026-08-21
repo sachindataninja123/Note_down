@@ -5,38 +5,39 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, "Name is required"],
       trim: true,
     },
-
     email: {
       type: String,
-      required: true,
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
     },
-
     password: {
       type: String,
-      required: true,
-      minlength: 6,
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
     },
-
-    interviewCoin: {
+    avatar: {
+      type: String,
+      default: "",
+    },
+    tokenVersion: {
       type: Number,
-      default: 200,
+      default: 0,
     },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
-
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next ? next() : undefined;
   this.password = await bcrypt.hash(this.password, 10);
+  if (next) next();
 });
 
 userSchema.methods.comparePassword = async function (password) {
