@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const API_BASE_URL =
-  "http://localhost:8000/api/v1";
+  import.meta.env.VITE_BACKEND_URL ||
+  "https://note-down-gtto.onrender.com/api/v1";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -31,7 +32,7 @@ api.interceptors.response.use(
           {},
           {
             withCredentials: true,
-          }
+          },
         );
 
         return api(originalRequest);
@@ -41,7 +42,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;
