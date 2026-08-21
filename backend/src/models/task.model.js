@@ -12,6 +12,15 @@ const subtaskSchema = new mongoose.Schema({
   },
 });
 
+const attachmentSchema = new mongoose.Schema({
+  url: { type: String, required: true },
+  publicId: { type: String, required: true },
+  fileName: { type: String, required: true },
+  fileType: { type: String, default: "application/octet-stream" },
+  fileSize: { type: Number },
+  uploadedAt: { type: Date, default: Date.now },
+});
+
 const taskSchema = new mongoose.Schema(
   {
     title: {
@@ -30,6 +39,18 @@ const taskSchema = new mongoose.Schema(
       ref: "Category",
       default: null,
     },
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+      default: null,
+      index: true,
+    },
+    assignedTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     priority: {
       type: String,
       enum: ["Low", "Medium", "High"],
@@ -44,6 +65,7 @@ const taskSchema = new mongoose.Schema(
       default: false,
     },
     subtasks: [subtaskSchema],
+    attachments: [attachmentSchema],
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
