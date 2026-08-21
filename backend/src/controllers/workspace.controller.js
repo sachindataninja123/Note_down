@@ -43,7 +43,8 @@ export const addMember = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { email, role } = req.body || {};
 
-  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Workspace ID");
+  if (!mongoose.isValidObjectId(id))
+    throw new ApiError(400, "Invalid Workspace ID");
   if (!email) throw new ApiError(400, "User email is required");
 
   const workspace = await Workspace.findOne({ _id: id, owner: req.user._id });
@@ -57,7 +58,7 @@ export const addMember = asyncHandler(async (req, res) => {
   }
 
   const alreadyMember = workspace.members.some(
-    (m) => m.user.toString() === userToAdd._id.toString()
+    (m) => m.user.toString() === userToAdd._id.toString(),
   );
 
   if (alreadyMember) {
@@ -88,7 +89,7 @@ export const removeMember = asyncHandler(async (req, res) => {
   if (!workspace) throw new ApiError(403, "Only the owner can remove members");
 
   workspace.members = workspace.members.filter(
-    (m) => m.user.toString() !== memberId
+    (m) => m.user.toString() !== memberId,
   );
 
   await workspace.save();

@@ -46,7 +46,9 @@ const addSubtask = async (taskId, title) => {
 
 // PATCH /api/v1/tasks/:id/subtasks/:subtaskId/toggle
 const toggleSubtask = async (taskId, subtaskId) => {
-  const response = await api.patch(`/tasks/${taskId}/subtasks/${subtaskId}/toggle`);
+  const response = await api.patch(
+    `/tasks/${taskId}/subtasks/${subtaskId}/toggle`,
+  );
   return response.data;
 };
 
@@ -73,7 +75,9 @@ const uploadAttachment = async (taskId, file) => {
 
 // DELETE /api/v1/tasks/:id/attachments/:attachmentId
 const deleteAttachment = async (taskId, attachmentId) => {
-  const response = await api.delete(`/tasks/${taskId}/attachments/${attachmentId}`);
+  const response = await api.delete(
+    `/tasks/${taskId}/attachments/${attachmentId}`,
+  );
   return { attachmentId, ...response.data };
 };
 

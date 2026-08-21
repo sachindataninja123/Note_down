@@ -3,14 +3,28 @@ import Task from "../models/task.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { getAccessibleTask, isWorkspaceMember } from "../utils/taskAccess.js";
 
 // --- TASK CRUD ---
 
 export const createTask = asyncHandler(async (req, res) => {
-  const { title, description, category, priority, dueDate, subtasks } = req.body || {};
+  // FIX: `workspace` was missing from the destructure, so shared tasks were
+  // always created with workspace: null and never showed up for teammates.
+  const { title, description, category, priority, dueDate, subtasks, workspace } =
+    req.body || {};
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
+  }
+
+  // FIX: verify the user actually belongs to the workspace before letting
+  // them create a task inside it.
+  if (workspace) {
+    if (!mongoose.isValidObjectId(workspace)) {
+      throw new ApiError(400, "Invalid workspace ID");
+    }
+    const allowed = await isWorkspaceMember(workspace, req.user);
+    if (!allowed) throw new ApiError(403, "You are not a member of this workspace");
   }
 
   const task = await Task.create({
@@ -20,6 +34,7 @@ export const createTask = asyncHandler(async (req, res) => {
     priority: priority || "Medium",
     dueDate: dueDate ? new Date(dueDate) : null,
     subtasks: Array.isArray(subtasks) ? subtasks : [],
+    workspace: workspace || null,
     owner: req.user._id,
   });
 
@@ -29,24 +44,42 @@ export const createTask = asyncHandler(async (req, res) => {
 });
 
 export const getAllTasks = asyncHandler(async (req, res) => {
-  const { status, category, priority, search } = req.query;
+  const { status, category, priority, search, workspace } = req.query;
 
-  const query = { owner: req.user._id };
+  let query = {};
+
+  if (workspace && workspace !== "personal") {
+    // FIX: this used to trust any workspace ID from the query string and
+    // return its tasks with no membership check (IDOR). Now verified first.
+    if (!mongoose.isValidObjectId(workspace)) {
+      throw new ApiError(400, "Invalid workspace ID");
+    }
+    const allowed = await isWorkspaceMember(workspace, req.user);
+    if (!allowed) throw new ApiError(403, "You do not have access to this workspace");
+
+    query.workspace = workspace;
+  } else {
+    // Personal mode: only show user's own tasks without a workspace
+    query.owner = req.user._id;
+    query.workspace = null;
+  }
 
   if (status === "active") query.completed = false;
   if (status === "completed") query.completed = true;
-  if (category && mongoose.isValidObjectId(category)) query.category = category;
+  if (category && category !== "All") query.category = category;
   if (priority && priority !== "All") query.priority = priority;
 
   if (search && search.trim()) {
+    const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     query.$or = [
-      { title: { $regex: search.trim(), $options: "i" } },
-      { description: { $regex: search.trim(), $options: "i" } },
+      { title: { $regex: escaped, $options: "i" } },
+      { description: { $regex: escaped, $options: "i" } },
     ];
   }
 
   const tasks = await Task.find(query)
     .populate("category", "name color icon")
+    .populate("owner", "name email")
     .sort({ completed: 1, createdAt: -1 });
 
   return res
@@ -58,12 +91,12 @@ export const getTaskById = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
-  const task = await Task.findOne({ _id: id, owner: req.user._id }).populate(
-    "category",
-    "name color icon"
-  );
+  // FIX: was hard-locked to owner only, so workspace teammates got a 404
+  // on tasks they should be able to view.
+  const accessible = await getAccessibleTask(id, req.user);
+  if (!accessible) throw new ApiError(404, "Task not found");
 
-  if (!task) throw new ApiError(404, "Task not found");
+  const task = await Task.findById(id).populate("category", "name color icon");
 
   return res
     .status(200)
@@ -76,20 +109,31 @@ export const updateTask = asyncHandler(async (req, res) => {
 
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
+  const accessible = await getAccessibleTask(id, req.user);
+  if (!accessible) throw new ApiError(404, "Task not found");
+
   const updates = {};
-  if (title !== undefined) updates.title = title.trim();
-  if (description !== undefined) updates.description = description.trim();
+
+  // FIX: `.trim()` was called unguarded — a non-string title/description
+  // (or a title that trims to "") would throw a raw 500 instead of a 400.
+  if (title !== undefined) {
+    if (typeof title !== "string" || !title.trim()) {
+      throw new ApiError(400, "Title cannot be empty");
+    }
+    updates.title = title.trim();
+  }
+  if (description !== undefined) {
+    updates.description = typeof description === "string" ? description.trim() : "";
+  }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
   if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
 
-  const updatedTask = await Task.findOneAndUpdate(
-    { _id: id, owner: req.user._id },
+  const updatedTask = await Task.findByIdAndUpdate(
+    id,
     { $set: updates },
     { new: true, runValidators: true }
   ).populate("category", "name color icon");
-
-  if (!updatedTask) throw new ApiError(404, "Task not found");
 
   return res
     .status(200)
@@ -100,7 +144,7 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
-  const task = await Task.findOne({ _id: id, owner: req.user._id });
+  const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
   task.completed = !task.completed;
@@ -108,24 +152,32 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, task, `Task marked as ${task.completed ? "completed" : "active"}`));
+    .json(
+      new ApiResponse(200, task, `Task marked as ${task.completed ? "completed" : "active"}`)
+    );
 });
 
 export const deleteTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
+  // NOTE: deleting is intentionally still owner-only — workspace members
+  // can edit/toggle a shared task, but only the creator (or you could add
+  // an "admin" role check here) can delete it. Adjust if that's not the
+  // policy you want.
   const deletedTask = await Task.findOneAndDelete({ _id: id, owner: req.user._id });
   if (!deletedTask) throw new ApiError(404, "Task not found");
 
+  // FIX: the frontend reducer filters on `action.payload.taskId`, which
+  // this response never provided, so deleted tasks stayed in the UI list
+  // until the next full refetch. Now included explicitly.
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Task deleted successfully"));
+    .json(new ApiResponse(200, { taskId: deletedTask._id }, "Task deleted successfully"));
 });
 
-// --- SUBTASK ACTIONS (Step 1) ---
+// --- SUBTASK ACTIONS ---
 
-// Add Subtask
 export const addSubtask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title } = req.body || {};
@@ -135,20 +187,20 @@ export const addSubtask = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Subtask title is required");
   }
 
-  const task = await Task.findOneAndUpdate(
-    { _id: id, owner: req.user._id },
+  const accessible = await getAccessibleTask(id, req.user);
+  if (!accessible) throw new ApiError(404, "Task not found");
+
+  const task = await Task.findByIdAndUpdate(
+    id,
     { $push: { subtasks: { title: title.trim(), completed: false } } },
     { new: true, runValidators: true }
   ).populate("category", "name color icon");
-
-  if (!task) throw new ApiError(404, "Task not found");
 
   return res
     .status(201)
     .json(new ApiResponse(201, task, "Subtask added successfully"));
 });
 
-// Toggle Subtask Completion
 export const toggleSubtask = asyncHandler(async (req, res) => {
   const { id, subtaskId } = req.params;
 
@@ -156,7 +208,7 @@ export const toggleSubtask = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid Task or Subtask ID");
   }
 
-  const task = await Task.findOne({ _id: id, owner: req.user._id });
+  const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
   const subtask = task.subtasks.id(subtaskId);
@@ -170,7 +222,6 @@ export const toggleSubtask = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, task, "Subtask status updated"));
 });
 
-// Delete Subtask
 export const deleteSubtask = asyncHandler(async (req, res) => {
   const { id, subtaskId } = req.params;
 
@@ -178,13 +229,14 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid Task or Subtask ID");
   }
 
-  const task = await Task.findOneAndUpdate(
-    { _id: id, owner: req.user._id },
+  const accessible = await getAccessibleTask(id, req.user);
+  if (!accessible) throw new ApiError(404, "Task not found");
+
+  const task = await Task.findByIdAndUpdate(
+    id,
     { $pull: { subtasks: { _id: subtaskId } } },
     { new: true }
   ).populate("category", "name color icon");
-
-  if (!task) throw new ApiError(404, "Task not found");
 
   return res
     .status(200)

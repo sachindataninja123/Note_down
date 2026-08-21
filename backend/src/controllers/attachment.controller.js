@@ -5,13 +5,25 @@ import Task from "../models/task.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { getAccessibleTask } from "../utils/taskAccess.js";
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const ALLOWED_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 // Upload Attachment to Task
 export const uploadTaskAttachment = asyncHandler(async (req, res) => {
@@ -20,10 +32,22 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
   if (!req.file) throw new ApiError(400, "No file uploaded");
 
-  const task = await Task.findOne({ _id: id, owner: req.user._id });
+  // FIX: was `Task.findOne({ _id: id, owner: req.user._id })`, so workspace
+  // teammates couldn't attach files to shared tasks. Now uses the same
+  // access rule as everything else (owner OR workspace member).
+  const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
-  // Stream upload directly from memory buffer
+  // FIX: no server-side validation of file type/size — client could send
+  // anything. multer config may already cap size, but don't rely on that
+  // alone.
+  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
+    throw new ApiError(400, "Unsupported file type");
+  }
+  if (req.file.size > MAX_FILE_SIZE_BYTES) {
+    throw new ApiError(400, "File exceeds the 10MB limit");
+  }
+
   const uploadResult = await new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { folder: "task_attachments", resource_type: "auto" },
@@ -47,7 +71,7 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(201, task.attachments, "File uploaded successfully"));
+    .json(new ApiResponse(201, task, "File uploaded successfully"));
 });
 
 // Delete Attachment from Task
@@ -58,19 +82,22 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid ID format");
   }
 
-  const task = await Task.findOne({ _id: id, owner: req.user._id });
+  const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
   const attachment = task.attachments.id(attachmentId);
   if (!attachment) throw new ApiError(404, "Attachment not found");
 
-  // Delete from Cloudinary
   await cloudinary.uploader.destroy(attachment.publicId);
 
   task.attachments.pull({ _id: attachmentId });
   await task.save();
 
+  // FIX: frontend reducer reads action.payload.taskId/attachmentId to
+  // splice the item out of state locally — neither was ever returned.
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Attachment deleted successfully"));
+    .json(
+      new ApiResponse(200, { taskId: id, attachmentId }, "Attachment deleted successfully")
+    );
 });
