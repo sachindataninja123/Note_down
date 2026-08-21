@@ -5,6 +5,7 @@ const initialState = {
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isAuthChecked: false,
   isSuccess: false,
   isError: false,
   message: "",
@@ -21,22 +22,19 @@ export const register = createAsyncThunk(
         error.response?.data?.message || error.message || "Registration failed";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 2. Login Thunk
-export const login = createAsyncThunk(
-  "auth/login",
-  async (user, thunkAPI) => {
-    try {
-      return await authService.login(user);
-    } catch (error) {
-      const message =
-        error.response?.data?.message || error.message || "Login failed";
-      return thunkAPI.rejectWithValue(message);
-    }
+export const login = createAsyncThunk("auth/login", async (user, thunkAPI) => {
+  try {
+    return await authService.login(user);
+  } catch (error) {
+    const message =
+      error.response?.data?.message || error.message || "Login failed";
+    return thunkAPI.rejectWithValue(message);
   }
-);
+});
 
 // 3. Get Current User Profile (Auto-login check on app load)
 export const getProfile = createAsyncThunk(
@@ -46,10 +44,12 @@ export const getProfile = createAsyncThunk(
       return await authService.getProfile();
     } catch (error) {
       const message =
-        error.response?.data?.message || error.message || "Failed to fetch profile";
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch profile";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 4. Logout Thunk
@@ -119,11 +119,13 @@ export const authSlice = createSlice({
       })
       .addCase(getProfile.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.isAuthChecked = true;
         state.isAuthenticated = true;
         state.user = action.payload.data;
       })
       .addCase(getProfile.rejected, (state) => {
         state.isLoading = false;
+        state.isAuthChecked = true;
         state.isAuthenticated = false;
         state.user = null;
       })

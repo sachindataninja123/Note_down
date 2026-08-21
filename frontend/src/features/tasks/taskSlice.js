@@ -11,7 +11,7 @@ const initialState = {
   message: "",
 };
 
-// 1. Fetch all tasks with filters
+
 export const fetchTasks = createAsyncThunk(
   "tasks/fetchAll",
   async (_, thunkAPI) => {
@@ -19,11 +19,19 @@ export const fetchTasks = createAsyncThunk(
       const state = thunkAPI.getState();
       const { statusFilter, searchQuery } = state.tasks;
       const { selectedCategory } = state.categories;
+      const { currentWorkspace } = state.workspaces;
 
       const params = {};
       if (statusFilter !== "all") params.status = statusFilter;
       if (selectedCategory && selectedCategory !== "All") params.category = selectedCategory;
       if (searchQuery.trim()) params.search = searchQuery.trim();
+      
+      // Pass the active workspace ID
+      if (currentWorkspace?._id) {
+        params.workspace = currentWorkspace._id;
+      } else {
+        params.workspace = "personal";
+      }
 
       return await taskService.getTasks(params);
     } catch (error) {
@@ -32,7 +40,7 @@ export const fetchTasks = createAsyncThunk(
   }
 );
 
-// 2. Fetch single task
+
 export const fetchTaskById = createAsyncThunk(
   "tasks/fetchById",
   async (taskId, thunkAPI) => {
@@ -44,7 +52,6 @@ export const fetchTaskById = createAsyncThunk(
   }
 );
 
-// 3. Create task
 export const addTask = createAsyncThunk(
   "tasks/add",
   async (taskData, thunkAPI) => {
@@ -56,7 +63,6 @@ export const addTask = createAsyncThunk(
   }
 );
 
-// 4. Update task details
 export const editTask = createAsyncThunk(
   "tasks/edit",
   async ({ taskId, taskData }, thunkAPI) => {
@@ -68,7 +74,6 @@ export const editTask = createAsyncThunk(
   }
 );
 
-// 5. Toggle task completion
 export const toggleTaskStatus = createAsyncThunk(
   "tasks/toggleStatus",
   async (taskId, thunkAPI) => {
@@ -80,7 +85,6 @@ export const toggleTaskStatus = createAsyncThunk(
   }
 );
 
-// 6. Delete task
 export const removeTask = createAsyncThunk(
   "tasks/remove",
   async (taskId, thunkAPI) => {
@@ -92,7 +96,6 @@ export const removeTask = createAsyncThunk(
   }
 );
 
-// 7. Subtasks: Add
 export const createSubtask = createAsyncThunk(
   "tasks/createSubtask",
   async ({ taskId, title }, thunkAPI) => {
@@ -104,7 +107,6 @@ export const createSubtask = createAsyncThunk(
   }
 );
 
-// 8. Subtasks: Toggle
 export const toggleSubtaskStatus = createAsyncThunk(
   "tasks/toggleSubtask",
   async ({ taskId, subtaskId }, thunkAPI) => {
@@ -116,7 +118,6 @@ export const toggleSubtaskStatus = createAsyncThunk(
   }
 );
 
-// 9. Subtasks: Delete
 export const removeSubtask = createAsyncThunk(
   "tasks/removeSubtask",
   async ({ taskId, subtaskId }, thunkAPI) => {
@@ -128,7 +129,6 @@ export const removeSubtask = createAsyncThunk(
   }
 );
 
-// 10. Attachments: Upload
 export const uploadAttachment = createAsyncThunk(
   "tasks/uploadAttachment",
   async ({ taskId, file }, thunkAPI) => {
@@ -140,7 +140,6 @@ export const uploadAttachment = createAsyncThunk(
   }
 );
 
-// 11. Attachments: Delete
 export const removeAttachment = createAsyncThunk(
   "tasks/removeAttachment",
   async ({ taskId, attachmentId }, thunkAPI) => {

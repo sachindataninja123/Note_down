@@ -38,20 +38,14 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
 // --- Controllers ---
 
 export const registerUser = asyncHandler(async (req, res) => {
-    console.log("BODY:", req.body);
+  // FIX: removed console.log(BODY/NAME/EMAIL/PASSWORD) — the password one
+  // was writing plaintext passwords straight into server logs. Never log
+  // req.body on an auth route.
   const { name, password, email } = req.body || {};
-
-   console.log("NAME:", name);
-
-  console.log("EMAIL:", email);
-
-  console.log("PASSWORD:", password);
 
   if (!name || !password || !email) {
     throw new ApiError(400, "All fields are required!");
   }
-
-
 
   assertPlainString(name, "Name");
   assertPlainString(password, "Password");
@@ -68,14 +62,19 @@ export const registerUser = asyncHandler(async (req, res) => {
     );
   }
 
-  const existUser = await User.findOne({ email });
+  // FIX: normalize email the same way the schema does (lowercase/trim)
+  // before the duplicate check, otherwise "Foo@Bar.com" and "foo@bar.com"
+  // both pass this check but collide on save via the unique index.
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const existUser = await User.findOne({ email: normalizedEmail });
   if (existUser) {
     throw new ApiError(409, "Email already registered");
   }
 
   const user = await User.create({
-    name,
-    email,
+    name: name.trim(),
+    email: normalizedEmail,
     password,
   });
 
@@ -96,7 +95,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   assertPlainString(email, "Email");
   assertPlainString(password, "Password");
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
   if (!user) {
     throw new ApiError(401, "Invalid email or password!");
   }
@@ -138,10 +137,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(
-      incomingRefreshToken,
-      process.env.REFRESH_TOKEN_SECRET
-    );
+    decoded = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
   } catch (error) {
     throw new ApiError(401, "Invalid or expired refresh token");
   }
@@ -167,9 +163,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
 export const logout = asyncHandler(async (req, res) => {
   if (req.user?._id) {
-    await User.findByIdAndUpdate(req.user._id, {
-      $inc: { tokenVersion: 1 },
-    });
+    await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
   }
 
   res
