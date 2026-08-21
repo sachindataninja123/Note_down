@@ -15,13 +15,9 @@ export const fetchCategories = createAsyncThunk(
     try {
       return await categoryService.getCategories();
     } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to load categories";
-      return thunkAPI.rejectWithValue(message);
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
-  },
+  }
 );
 
 export const addCategory = createAsyncThunk(
@@ -30,13 +26,20 @@ export const addCategory = createAsyncThunk(
     try {
       return await categoryService.createCategory(categoryData);
     } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to create category";
-      return thunkAPI.rejectWithValue(message);
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
-  },
+  }
+);
+
+export const editCategory = createAsyncThunk(
+  "categories/edit",
+  async ({ categoryId, categoryData }, thunkAPI) => {
+    try {
+      return await categoryService.updateCategory(categoryId, categoryData);
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
 );
 
 export const removeCategory = createAsyncThunk(
@@ -45,13 +48,9 @@ export const removeCategory = createAsyncThunk(
     try {
       return await categoryService.deleteCategory(categoryId);
     } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to delete category";
-      return thunkAPI.rejectWithValue(message);
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
-  },
+  }
 );
 
 export const categorySlice = createSlice({
@@ -64,30 +63,19 @@ export const categorySlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Categories
-      .addCase(fetchCategories.pending, (state) => {
-        state.isLoading = true;
-      })
       .addCase(fetchCategories.fulfilled, (state, action) => {
-        state.isLoading = false;
         state.categories = action.payload.data || [];
       })
-      .addCase(fetchCategories.rejected, (state, action) => {
-        state.isLoading = false;
-        state.isError = true;
-        state.message = action.payload;
-      })
-
-      // Add Category
       .addCase(addCategory.fulfilled, (state, action) => {
         state.categories.push(action.payload.data);
       })
-
-      // Delete Category
+      .addCase(editCategory.fulfilled, (state, action) => {
+        const updated = action.payload.data;
+        const index = state.categories.findIndex((c) => c._id === updated._id);
+        if (index !== -1) state.categories[index] = updated;
+      })
       .addCase(removeCategory.fulfilled, (state, action) => {
-        state.categories = state.categories.filter(
-          (c) => c._id !== action.payload.categoryId,
-        );
+        state.categories = state.categories.filter((c) => c._id !== action.payload.categoryId);
         if (state.selectedCategory === action.payload.categoryId) {
           state.selectedCategory = "All";
         }
