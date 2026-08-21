@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { login, resetAuthStatus } from "../features/auth/authSlice";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Zap } from "lucide-react";
+import {
+  ArrowBigLeft,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Loader2,
+  Zap,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function Login() {
@@ -19,7 +26,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const { isLoading, isError, message, isAuthenticated } = useSelector(
-    (state) => state.auth
+    (state) => state.auth,
   );
 
   useEffect(() => {
@@ -60,9 +67,8 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-6 text-slate-900">
+    <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-6 text-slate-900 ">
       <div className="w-full max-w-md">
-
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 mb-4">
@@ -80,9 +86,7 @@ export default function Login() {
 
         {/* Card */}
         <div className="p-3">
-
           <form onSubmit={handleSubmit} className="space-y-5">
-
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -123,9 +127,7 @@ export default function Login() {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 transition"
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
