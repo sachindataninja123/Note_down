@@ -10,8 +10,15 @@ import { getAccessibleTask, isWorkspaceMember } from "../utils/taskAccess.js";
 export const createTask = asyncHandler(async (req, res) => {
   // FIX: `workspace` was missing from the destructure, so shared tasks were
   // always created with workspace: null and never showed up for teammates.
-  const { title, description, category, priority, dueDate, subtasks, workspace } =
-    req.body || {};
+  const {
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+    subtasks,
+    workspace,
+  } = req.body || {};
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
@@ -24,7 +31,8 @@ export const createTask = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed) throw new ApiError(403, "You are not a member of this workspace");
+    if (!allowed)
+      throw new ApiError(403, "You are not a member of this workspace");
   }
 
   const task = await Task.create({
@@ -55,7 +63,8 @@ export const getAllTasks = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed) throw new ApiError(403, "You do not have access to this workspace");
+    if (!allowed)
+      throw new ApiError(403, "You do not have access to this workspace");
 
     query.workspace = workspace;
   } else {
@@ -123,16 +132,18 @@ export const updateTask = asyncHandler(async (req, res) => {
     updates.title = title.trim();
   }
   if (description !== undefined) {
-    updates.description = typeof description === "string" ? description.trim() : "";
+    updates.description =
+      typeof description === "string" ? description.trim() : "";
   }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
-  if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+  if (dueDate !== undefined)
+    updates.dueDate = dueDate ? new Date(dueDate) : null;
 
   const updatedTask = await Task.findByIdAndUpdate(
     id,
     { $set: updates },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).populate("category", "name color icon");
 
   return res
@@ -153,7 +164,11 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, task, `Task marked as ${task.completed ? "completed" : "active"}`)
+      new ApiResponse(
+        200,
+        task,
+        `Task marked as ${task.completed ? "completed" : "active"}`,
+      ),
     );
 });
 
@@ -165,7 +180,10 @@ export const deleteTask = asyncHandler(async (req, res) => {
   // can edit/toggle a shared task, but only the creator (or you could add
   // an "admin" role check here) can delete it. Adjust if that's not the
   // policy you want.
-  const deletedTask = await Task.findOneAndDelete({ _id: id, owner: req.user._id });
+  const deletedTask = await Task.findOneAndDelete({
+    _id: id,
+    owner: req.user._id,
+  });
   if (!deletedTask) throw new ApiError(404, "Task not found");
 
   // FIX: the frontend reducer filters on `action.payload.taskId`, which
@@ -173,7 +191,13 @@ export const deleteTask = asyncHandler(async (req, res) => {
   // until the next full refetch. Now included explicitly.
   return res
     .status(200)
-    .json(new ApiResponse(200, { taskId: deletedTask._id }, "Task deleted successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        { taskId: deletedTask._id },
+        "Task deleted successfully",
+      ),
+    );
 });
 
 // --- SUBTASK ACTIONS ---
@@ -193,7 +217,7 @@ export const addSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $push: { subtasks: { title: title.trim(), completed: false } } },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).populate("category", "name color icon");
 
   return res
@@ -235,7 +259,7 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $pull: { subtasks: { _id: subtaskId } } },
-    { new: true }
+    { new: true },
   ).populate("category", "name color icon");
 
   return res
