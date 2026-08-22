@@ -1,35 +1,15 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-let transporter;
-
-const getTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      family: 4,
-    });
-  }
-
-  return transporter;
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendResetOtpEmail = async (toEmail, otp) => {
-  const t = getTransporter();
-
-  const info = await t.sendMail({
-    from: `"TaskPulse" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+  const { data, error } = await resend.emails.send({
+    from: process.env.EMAIL_FROM || "TaskPulse <onboarding@resend.dev>",
     to: toEmail,
     subject: "Reset your TaskPulse password",
-
     html: `
       <div
         style="
@@ -107,19 +87,22 @@ export const sendResetOtpEmail = async (toEmail, otp) => {
     `,
   });
 
-  console.log(`Password reset OTP sent to ${toEmail}:`, info.messageId);
+  if (error) {
+    console.error("Failed to send reset OTP email:", error);
+    throw new Error("Failed to send email");
+  }
 
-  return info;
+  console.log(`Password reset OTP sent to ${toEmail}:`, data.id);
+
+  return data;
 };
 
 export const sendWorkspaceInviteEmail = async (
   toEmail,
-  { workspaceName, inviterName, inviteLink, expiryDays = 7 },
+  { workspaceName, inviterName, inviteLink, expiryDays = 7 }
 ) => {
-  const t = getTransporter();
-
-  const info = await t.sendMail({
-    from: `"TaskPulse" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+  const { data, error } = await resend.emails.send({
+    from: process.env.EMAIL_FROM || "TaskPulse <onboarding@resend.dev>",
     to: toEmail,
     subject: `${inviterName} invited you to join "${workspaceName}" on TaskPulse`,
     html: `
@@ -144,7 +127,7 @@ export const sendWorkspaceInviteEmail = async (
         </p>
 
         <div style="margin: 25px 0; text-align: center;">
-          <a
+          
             href="${inviteLink}"
             style="
               display: inline-block;
@@ -175,17 +158,20 @@ export const sendWorkspaceInviteEmail = async (
     `,
   });
 
-  console.log(`Workspace invite sent to ${toEmail}:`, info.messageId);
+  if (error) {
+    console.error("Failed to send workspace invite email:", error);
+    throw new Error("Failed to send email");
+  }
 
-  return info;
+  console.log(`Workspace invite sent to ${toEmail}:`, data.id);
+
+  return data;
 };
 
 export const verifyEmailTransport = async () => {
-  try {
-    await getTransporter().verify();
-
-    console.log("✅ SMTP transporter ready");
-  } catch (err) {
-    console.error("❌ SMTP transporter failed to connect:", err.message);
+  if (!process.env.RESEND_API_KEY) {
+    console.error("❌ RESEND_API_KEY is not set");
+    return;
   }
+  console.log("✅ Resend configured");
 };
