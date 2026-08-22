@@ -14,6 +14,7 @@ import GuestRoute from "./components/GuestRoute";
 import { Toaster } from "react-hot-toast";
 import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
+import InviteAccept from "./pages/InviteAccept";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -34,7 +35,7 @@ export default function App() {
           }
         />
 
-          <Route
+        <Route
           path="/forgot-password"
           element={
             <GuestRoute>
@@ -42,6 +43,8 @@ export default function App() {
             </GuestRoute>
           }
         />
+
+        <Route path="/invite/:token" element={<InviteAccept />} />
 
         <Route
           path="/register"
@@ -61,7 +64,7 @@ export default function App() {
           }
         />
 
-          <Route
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>

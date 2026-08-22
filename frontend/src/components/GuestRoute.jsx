@@ -1,11 +1,13 @@
 import React from "react";
 import { useSelector } from "react-redux";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 
 export default function GuestRoute({ children }) {
   const { isAuthenticated, isAuthChecked } = useSelector(
     (state) => state.auth
   );
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
 
   if (!isAuthChecked) {
     return (
@@ -23,7 +25,6 @@ export default function GuestRoute({ children }) {
             stroke="currentColor"
             strokeWidth="4"
           />
-
           <path
             className="opacity-75"
             fill="currentColor"
@@ -35,7 +36,7 @@ export default function GuestRoute({ children }) {
   }
 
   return isAuthenticated ? (
-    <Navigate to="/" replace />
+    <Navigate to={redirectTo || "/"} replace />
   ) : (
     children
   );

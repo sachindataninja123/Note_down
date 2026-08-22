@@ -4,11 +4,16 @@ import { register, resetAuthStatus } from "../features/auth/authSlice";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Zap } from "lucide-react";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+  const prefillEmail = searchParams.get("email") || "";
+
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
+    email: prefillEmail,
     password: "",
   });
 
@@ -20,7 +25,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   const { isLoading, isError, isSuccess, message } = useSelector(
-    (state) => state.auth
+    (state) => state.auth,
   );
 
   useEffect(() => {
@@ -33,11 +38,15 @@ export default function Register() {
     if (isSuccess) {
       toast.success("Account created successfully! 🎉");
 
-      navigate("/login", {
+      const params = new URLSearchParams();
+      if (redirectTo) params.set("redirect", redirectTo);
+      if (prefillEmail) params.set("email", prefillEmail);
+
+      navigate(`/login${params.toString() ? `?${params}` : ""}`, {
         replace: true,
       });
     }
-  }, [isSuccess, navigate]);
+  }, [isSuccess, navigate, redirectTo, prefillEmail]);
 
   useEffect(() => {
     return () => {
@@ -70,14 +79,13 @@ export default function Register() {
         name,
         email,
         password,
-      })
+      }),
     );
   };
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-6 text-slate-900">
       <div className="w-full max-w-md">
-
         {/* Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 mb-4">
@@ -95,9 +103,7 @@ export default function Register() {
 
         {/* Card */}
         <div className="p-3 ">
-
           <form onSubmit={handleSubmit} className="space-y-5">
-
             {/* Name */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -157,9 +163,7 @@ export default function Register() {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 transition"
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />

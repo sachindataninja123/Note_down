@@ -15,13 +15,18 @@ const deleteWorkspace = async (workspaceId) => {
   return res.data;
 };
 
-const addMember = async (workspaceId, memberData) => {
-  const res = await api.post(`/workspaces/${workspaceId}/members`, memberData);
+const inviteMember = async (workspaceId, memberData) => {
+  const res = await api.post(
+    `/workspaces/${workspaceId}/members/invite`,
+    memberData,
+  );
   return res.data;
 };
 
 const removeMember = async (workspaceId, memberId) => {
-  const res = await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);
+  const res = await api.delete(
+    `/workspaces/${workspaceId}/members/${memberId}`,
+  );
   return res.data;
 };
 
@@ -29,7 +34,7 @@ const workspaceService = {
   getWorkspaces,
   createWorkspace,
   deleteWorkspace,
-  addMember,
+  inviteMember,
   removeMember,
 };
 

@@ -3,10 +3,6 @@ import workspaceService from "./workspaceService";
 
 const initialState = {
   workspaces: [],
-  // FIX: stays null (= Personal) until the user explicitly picks a
-  // workspace. Previously fetchWorkspaces.fulfilled auto-selected
-  // workspaces[0], which meant a user with any workspace membership could
-  // never see their personal tasks on load.
   currentWorkspace: null,
   isLoading: false,
   isError: false,
@@ -20,10 +16,12 @@ export const fetchWorkspaces = createAsyncThunk(
       return await workspaceService.getWorkspaces();
     } catch (error) {
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to load workspaces"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to load workspaces",
       );
     }
-  }
+  },
 );
 
 export const addWorkspace = createAsyncThunk(
@@ -33,10 +31,12 @@ export const addWorkspace = createAsyncThunk(
       return await workspaceService.createWorkspace(workspaceData);
     } catch (error) {
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to create workspace"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to create workspace",
       );
     }
-  }
+  },
 );
 
 // NEW: was entirely missing — nothing in the app could delete a workspace.
@@ -48,23 +48,27 @@ export const removeWorkspace = createAsyncThunk(
       return { workspaceId };
     } catch (error) {
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to delete workspace"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to delete workspace",
       );
     }
-  }
+  },
 );
 
 export const inviteMember = createAsyncThunk(
   "workspaces/inviteMember",
   async ({ workspaceId, email, role }, thunkAPI) => {
     try {
-      return await workspaceService.addMember(workspaceId, { email, role });
+      return await workspaceService.inviteMember(workspaceId, { email, role });
     } catch (error) {
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to invite member"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to invite member",
       );
     }
-  }
+  },
 );
 
 export const deleteMember = createAsyncThunk(
@@ -74,10 +78,12 @@ export const deleteMember = createAsyncThunk(
       return await workspaceService.removeMember(workspaceId, memberId);
     } catch (error) {
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to remove member"
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to remove member",
       );
     }
-  }
+  },
 );
 
 export const workspaceSlice = createSlice({
@@ -121,23 +127,26 @@ export const workspaceSlice = createSlice({
       })
       .addCase(removeWorkspace.fulfilled, (state, action) => {
         const { workspaceId } = action.payload;
-        state.workspaces = state.workspaces.filter((w) => w._id !== workspaceId);
+        state.workspaces = state.workspaces.filter(
+          (w) => w._id !== workspaceId,
+        );
         // If the deleted workspace was the active one, drop back to Personal.
         if (state.currentWorkspace?._id === workspaceId) {
           state.currentWorkspace = null;
         }
       })
-      .addCase(inviteMember.fulfilled, (state, action) => {
-        const updated = action.payload.data;
-        const index = state.workspaces.findIndex((w) => w._id === updated._id);
-        if (index !== -1) state.workspaces[index] = updated;
-        if (state.currentWorkspace?._id === updated._id) state.currentWorkspace = updated;
+      .addCase(inviteMember.fulfilled, () => {
+        // Invite created, not a membership change — nothing to update in state.
+        // The invited person only joins members[] after they accept via
+        // /invite/:token, at which point the next fetchWorkspaces() call
+        // (or a websocket/poll, once you add that) will reflect it.
       })
       .addCase(deleteMember.fulfilled, (state, action) => {
         const updated = action.payload.data;
         const index = state.workspaces.findIndex((w) => w._id === updated._id);
         if (index !== -1) state.workspaces[index] = updated;
-        if (state.currentWorkspace?._id === updated._id) state.currentWorkspace = updated;
+        if (state.currentWorkspace?._id === updated._id)
+          state.currentWorkspace = updated;
       });
   },
 });
