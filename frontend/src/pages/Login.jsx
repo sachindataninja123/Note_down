@@ -123,6 +123,12 @@ export default function Login() {
                   className="w-full bg-white text-slate-900 placeholder-slate-400 px-4 py-3.5 pr-12 rounded-xl outline-none border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition"
                 />
 
+                <div className="text-right ">
+                  <Link to="/forgot-password" className="text-blue-700 text-sm mt-1 cursor-pointer hover:underline duration-200 transition-all">
+                    forgot password?
+                  </Link>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}

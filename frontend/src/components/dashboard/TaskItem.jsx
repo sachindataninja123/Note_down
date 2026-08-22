@@ -181,7 +181,7 @@ export default function TaskItem({
             <div className="flex items-start justify-between gap-2 sm:gap-4">
               <div className="min-w-0 flex-1">
                 <h3
-                  className={`text-[13px] sm:text-[13.5px] font-semibold tracking-tight wrap-break-word ${
+                  className={`text-[13.5px] sm:text-[15px] font-semibold tracking-tight wrap-break-word ${
                     task.completed
                       ? "line-through text-[#B4B5BD]"
                       : "text-[#14151A]"
@@ -370,7 +370,7 @@ export default function TaskItem({
                     />
 
                     <span
-                      className={`text-[11.5px] sm:text-xs wrap-break-word  ${
+                      className={`text-[12px] sm:text-sm wrap-break-word  ${
                         subtask.completed
                           ? "line-through text-[#B4B5BD]"
                           : "text-[#14151A] font-medium"

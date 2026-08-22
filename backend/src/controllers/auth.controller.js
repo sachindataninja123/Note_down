@@ -206,24 +206,25 @@ export const logout = asyncHandler(async (req, res) => {
 export const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body || {};
 
-  // Validate email
+  // 1. Validate email input
   if (!email) {
     throw new ApiError(400, "Email is required");
   }
 
   assertPlainString(email, "Email");
 
-  if (!EMAIL_REGEX.test(email)) {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
     throw new ApiError(400, "Please provide a valid email address");
   }
 
-  const normalizedEmail = email.toLowerCase().trim();
-
+  // 2. Lookup user
   const user = await User.findOne({
     email: normalizedEmail,
-  }).select("+resetOtpLastSentAt");
+  }).select("+resetOtp +resetOtpExpiry +resetOtpAttempts +resetOtpLastSentAt");
 
-  // Don't reveal whether the email exists
+  // 3. User Enumeration Protection (Return identical generic success if not found)
   if (!user) {
     return res
       .status(200)
@@ -231,48 +232,58 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           {},
-          "If an account exists with this email, an OTP has been sent",
-        ),
+          "If an account exists with this email, an OTP has been sent"
+        )
       );
   }
 
-  // OTP resend cooldown
+  // 4. Rate-limiting / Cooldown Check
   if (
     user.resetOtpLastSentAt &&
     Date.now() - user.resetOtpLastSentAt.getTime() <
       OTP_RESEND_COOLDOWN_SECONDS * 1000
   ) {
+    const elapsedSeconds =
+      (Date.now() - user.resetOtpLastSentAt.getTime()) / 1000;
     const waitSeconds = Math.ceil(
-      (OTP_RESEND_COOLDOWN_SECONDS * 1000 -
-        (Date.now() - user.resetOtpLastSentAt.getTime())) /
-        1000,
+      OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds
     );
 
     throw new ApiError(
       429,
-      `Please wait ${waitSeconds}s before requesting another OTP`,
+      `Please wait ${waitSeconds}s before requesting another OTP`
     );
   }
 
-  // Generate OTP
+  // 5. Generate and store OTP data
   const otp = generateOtp();
+  const hashedOtp = await hashOtp(otp);
 
-  // Store hashed OTP
-  user.resetOtp = await hashOtp(otp);
-
-  // OTP expiry
+  user.resetOtp = hashedOtp;
   user.resetOtpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-  // Reset attempts
   user.resetOtpAttempts = 0;
-
-  // Store last sent time
   user.resetOtpLastSentAt = new Date();
 
   await user.save();
 
-  // Send OTP email
-  await sendResetOtpEmail(user.email, otp);
+  // 6. Send OTP with automatic state rollback on failure
+  try {
+    await sendResetOtpEmail(user.email, otp);
+  } catch (emailError) {
+    console.error("❌ SMTP Delivery Failed:", emailError.message);
+
+    // Rollback OTP state so user isn't locked out by a failed send
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
+    user.resetOtpAttempts = 0;
+    user.resetOtpLastSentAt = null;
+    await user.save();
+
+    throw new ApiError(
+      500,
+      `Failed to deliver email: ${emailError.message || "SMTP connection error"}`
+    );
+  }
 
   return res
     .status(200)
@@ -280,11 +291,10 @@ export const forgotPassword = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         {},
-        "If an account exists with this email, an OTP has been sent",
-      ),
+        "If an account exists with this email, an OTP has been sent"
+      )
     );
 });
-
 export const verifyResetOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body || {};
 
@@ -390,7 +400,6 @@ export const resetPassword = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Password reset successfully"));
 });
-
 
 export const changePassword = asyncHandler(async (req, res) => {
   if (!req.user?._id) {
