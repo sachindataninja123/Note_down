@@ -28,10 +28,31 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    resetOtp: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetOtpExpiry: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    resetOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    resetOtpLastSentAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userSchema.pre("save", async function () {

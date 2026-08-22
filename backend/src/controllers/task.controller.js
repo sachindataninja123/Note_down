@@ -3,36 +3,31 @@ import Task from "../models/task.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { getAccessibleTask, isWorkspaceMember } from "../utils/TaskAccess.js";
+import { getAccessibleTask, isWorkspaceMember } from "../utils/taskAccess.js";
+import {
+  buildScope,
+  scopeFromTask,
+  getCachedTasks,
+  setCachedTasks,
+  invalidateTaskCache,
+} from "../utils/taskCache.js";
 
 // --- TASK CRUD ---
 
 export const createTask = asyncHandler(async (req, res) => {
-  // FIX: `workspace` was missing from the destructure, so shared tasks were
-  // always created with workspace: null and never showed up for teammates.
-  const {
-    title,
-    description,
-    category,
-    priority,
-    dueDate,
-    subtasks,
-    workspace,
-  } = req.body || {};
+  const { title, description, category, priority, dueDate, subtasks, workspace } =
+    req.body || {};
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
   }
 
-  // FIX: verify the user actually belongs to the workspace before letting
-  // them create a task inside it.
   if (workspace) {
     if (!mongoose.isValidObjectId(workspace)) {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed)
-      throw new ApiError(403, "You are not a member of this workspace");
+    if (!allowed) throw new ApiError(403, "You are not a member of this workspace");
   }
 
   const task = await Task.create({
@@ -46,6 +41,8 @@ export const createTask = asyncHandler(async (req, res) => {
     owner: req.user._id,
   });
 
+  await invalidateTaskCache(scopeFromTask(task));
+
   return res
     .status(201)
     .json(new ApiResponse(201, task, "Task created successfully"));
@@ -55,22 +52,21 @@ export const getAllTasks = asyncHandler(async (req, res) => {
   const { status, category, priority, search, workspace } = req.query;
 
   let query = {};
+  let scope;
 
   if (workspace && workspace !== "personal") {
-    // FIX: this used to trust any workspace ID from the query string and
-    // return its tasks with no membership check (IDOR). Now verified first.
     if (!mongoose.isValidObjectId(workspace)) {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed)
-      throw new ApiError(403, "You do not have access to this workspace");
+    if (!allowed) throw new ApiError(403, "You do not have access to this workspace");
 
     query.workspace = workspace;
+    scope = buildScope({ workspaceId: workspace });
   } else {
-    // Personal mode: only show user's own tasks without a workspace
     query.owner = req.user._id;
     query.workspace = null;
+    scope = buildScope({ userId: req.user._id });
   }
 
   if (status === "active") query.completed = false;
@@ -78,7 +74,8 @@ export const getAllTasks = asyncHandler(async (req, res) => {
   if (category && category !== "All") query.category = category;
   if (priority && priority !== "All") query.priority = priority;
 
-  if (search && search.trim()) {
+  const hasSearch = Boolean(search && search.trim());
+  if (hasSearch) {
     const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     query.$or = [
       { title: { $regex: escaped, $options: "i" } },
@@ -86,10 +83,31 @@ export const getAllTasks = asyncHandler(async (req, res) => {
     ];
   }
 
+  // CHANGED: search queries skip the cache entirely, both read and write.
+  // Two reasons: (1) search terms are rarely repeated character-for-
+  // character, so the hit rate would be near zero anyway, and (2) every
+  // unique search string was getting SADD'd into that scope's tracked
+  // key-set, which just bloats the set with entries that will basically
+  // never be read again before their TTL expires. Filters like
+  // status/category/priority stay cached since those DO repeat constantly
+  // (every user clicking "Active" tab hits the exact same key).
+  const cacheable = !hasSearch;
+
+  if (cacheable) {
+    const cached = await getCachedTasks(scope, req.query);
+    if (cached) {
+      return res.status(200).json(new ApiResponse(200, cached, "Tasks fetched successfully"));
+    }
+  }
+
   const tasks = await Task.find(query)
     .populate("category", "name color icon")
     .populate("owner", "name email")
     .sort({ completed: 1, createdAt: -1 });
+
+  if (cacheable) {
+    setCachedTasks(scope, req.query, tasks); // don't block the response on this
+  }
 
   return res
     .status(200)
@@ -100,8 +118,6 @@ export const getTaskById = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
-  // FIX: was hard-locked to owner only, so workspace teammates got a 404
-  // on tasks they should be able to view.
   const accessible = await getAccessibleTask(id, req.user);
   if (!accessible) throw new ApiError(404, "Task not found");
 
@@ -122,9 +138,6 @@ export const updateTask = asyncHandler(async (req, res) => {
   if (!accessible) throw new ApiError(404, "Task not found");
 
   const updates = {};
-
-  // FIX: `.trim()` was called unguarded — a non-string title/description
-  // (or a title that trims to "") would throw a raw 500 instead of a 400.
   if (title !== undefined) {
     if (typeof title !== "string" || !title.trim()) {
       throw new ApiError(400, "Title cannot be empty");
@@ -132,19 +145,19 @@ export const updateTask = asyncHandler(async (req, res) => {
     updates.title = title.trim();
   }
   if (description !== undefined) {
-    updates.description =
-      typeof description === "string" ? description.trim() : "";
+    updates.description = typeof description === "string" ? description.trim() : "";
   }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
-  if (dueDate !== undefined)
-    updates.dueDate = dueDate ? new Date(dueDate) : null;
+  if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
 
   const updatedTask = await Task.findByIdAndUpdate(
     id,
     { $set: updates },
-    { new: true, runValidators: true },
+    { new: true, runValidators: true }
   ).populate("category", "name color icon");
+
+  await invalidateTaskCache(scopeFromTask(updatedTask));
 
   return res
     .status(200)
@@ -161,14 +174,12 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   task.completed = !task.completed;
   await task.save();
 
+  await invalidateTaskCache(scopeFromTask(task));
+
   return res
     .status(200)
     .json(
-      new ApiResponse(
-        200,
-        task,
-        `Task marked as ${task.completed ? "completed" : "active"}`,
-      ),
+      new ApiResponse(200, task, `Task marked as ${task.completed ? "completed" : "active"}`)
     );
 });
 
@@ -176,28 +187,14 @@ export const deleteTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
-  // NOTE: deleting is intentionally still owner-only — workspace members
-  // can edit/toggle a shared task, but only the creator (or you could add
-  // an "admin" role check here) can delete it. Adjust if that's not the
-  // policy you want.
-  const deletedTask = await Task.findOneAndDelete({
-    _id: id,
-    owner: req.user._id,
-  });
+  const deletedTask = await Task.findOneAndDelete({ _id: id, owner: req.user._id });
   if (!deletedTask) throw new ApiError(404, "Task not found");
 
-  // FIX: the frontend reducer filters on `action.payload.taskId`, which
-  // this response never provided, so deleted tasks stayed in the UI list
-  // until the next full refetch. Now included explicitly.
+  await invalidateTaskCache(scopeFromTask(deletedTask));
+
   return res
     .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        { taskId: deletedTask._id },
-        "Task deleted successfully",
-      ),
-    );
+    .json(new ApiResponse(200, { taskId: deletedTask._id }, "Task deleted successfully"));
 });
 
 // --- SUBTASK ACTIONS ---
@@ -217,8 +214,10 @@ export const addSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $push: { subtasks: { title: title.trim(), completed: false } } },
-    { new: true, runValidators: true },
+    { new: true, runValidators: true }
   ).populate("category", "name color icon");
+
+  await invalidateTaskCache(scopeFromTask(task));
 
   return res
     .status(201)
@@ -241,6 +240,8 @@ export const toggleSubtask = asyncHandler(async (req, res) => {
   subtask.completed = !subtask.completed;
   await task.save();
 
+  await invalidateTaskCache(scopeFromTask(task));
+
   return res
     .status(200)
     .json(new ApiResponse(200, task, "Subtask status updated"));
@@ -259,8 +260,10 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $pull: { subtasks: { _id: subtaskId } } },
-    { new: true },
+    { new: true }
   ).populate("category", "name color icon");
+
+  await invalidateTaskCache(scopeFromTask(task));
 
   return res
     .status(200)
