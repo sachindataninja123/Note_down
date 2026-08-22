@@ -6,22 +6,19 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { getAccessibleTask } from "../utils/taskAccess.js";
 import Workspace from "../models/workspace.model.js";
+import { invalidateNotificationCache } from "../utils/notificationCache.js"; // NEW
 
-// Extract @Name mentions from comment text and resolve them against
-// workspace members. Matches "@" followed by letters/spaces up to the
-// next "@", comma, or line break — good enough for a first pass without
-// building a full mention-picker protocol on the frontend yet.
 const resolveMentions = async (text, workspaceId) => {
-  if (!workspaceId) return []; // no mentions possible on Personal tasks
+  if (!workspaceId) return [];
 
-  const matches = [...text.matchAll(/@([a-zA-Z\s]+?)(?=[@,.\n]|$)/g)].map(
-    (m) => m[1].trim().toLowerCase()
+  const matches = [...text.matchAll(/@([a-zA-Z\s]+?)(?=[@,.\n]|$)/g)].map((m) =>
+    m[1].trim().toLowerCase(),
   );
   if (matches.length === 0) return [];
 
   const workspace = await Workspace.findById(workspaceId).populate(
     "members.user",
-    "name"
+    "name",
   );
   if (!workspace) return [];
 
@@ -38,7 +35,8 @@ export const addComment = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { text } = req.body || {};
 
-  if (!mongoose.isValidObjectId(taskId)) throw new ApiError(400, "Invalid Task ID");
+  if (!mongoose.isValidObjectId(taskId))
+    throw new ApiError(400, "Invalid Task ID");
   if (!text || typeof text !== "string" || !text.trim()) {
     throw new ApiError(400, "Comment text is required");
   }
@@ -67,6 +65,7 @@ export const addComment = asyncHandler(async (req, res) => {
       message: `${req.user.name} mentioned you in "${task.title}"`,
       type: "MENTION",
     });
+    await invalidateNotificationCache(userId.toString()); // NEW
   }
 
   // Notify the task assignee(s) too, if they didn't write the comment
@@ -74,7 +73,9 @@ export const addComment = asyncHandler(async (req, res) => {
   if (Array.isArray(task.assignedTo)) {
     for (const assigneeId of task.assignedTo) {
       const isAuthor = assigneeId.toString() === req.user._id.toString();
-      const alreadyMentioned = mentions.some((m) => m.toString() === assigneeId.toString());
+      const alreadyMentioned = mentions.some(
+        (m) => m.toString() === assigneeId.toString(),
+      );
       if (isAuthor || alreadyMentioned) continue;
 
       await Notification.create({
@@ -84,6 +85,7 @@ export const addComment = asyncHandler(async (req, res) => {
         message: `${req.user.name} commented on "${task.title}"`,
         type: "COMMENT",
       });
+      await invalidateNotificationCache(assigneeId.toString()); // NEW
     }
   }
 
@@ -94,7 +96,8 @@ export const addComment = asyncHandler(async (req, res) => {
 
 export const getComments = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
-  if (!mongoose.isValidObjectId(taskId)) throw new ApiError(400, "Invalid Task ID");
+  if (!mongoose.isValidObjectId(taskId))
+    throw new ApiError(400, "Invalid Task ID");
 
   const task = await getAccessibleTask(taskId, req.user);
   if (!task) throw new ApiError(404, "Task not found");
@@ -110,14 +113,16 @@ export const getComments = asyncHandler(async (req, res) => {
 
 export const deleteComment = asyncHandler(async (req, res) => {
   const { taskId, commentId } = req.params;
-  if (!mongoose.isValidObjectId(taskId) || !mongoose.isValidObjectId(commentId)) {
+  if (
+    !mongoose.isValidObjectId(taskId) ||
+    !mongoose.isValidObjectId(commentId)
+  ) {
     throw new ApiError(400, "Invalid ID format");
   }
 
   const comment = await Comment.findOne({ _id: commentId, task: taskId });
   if (!comment) throw new ApiError(404, "Comment not found");
 
-  // Author-only delete
   if (comment.author.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You can only delete your own comments");
   }

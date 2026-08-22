@@ -8,6 +8,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { sendWorkspaceInviteEmail } from "../utils/sendOtpEmail.js";
+import { invalidateWorkspaceCacheForUsers } from "../utils/workspaceCache.js";
+
 
 const INVITE_EXPIRY_DAYS = 7;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
@@ -75,19 +77,17 @@ export const inviteMember = asyncHandler(async (req, res) => {
     expiryDays: INVITE_EXPIRY_DAYS,
   });
 
-  return res
-    .status(201)
-    .json(
-      new ApiResponse(
-        201,
-        {
-          invitationId: invitation._id,
-          email: normalizedEmail,
-          status: invitation.status,
-        },
-        "Invitation sent successfully",
-      ),
-    );
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      {
+        invitationId: invitation._id,
+        email: normalizedEmail,
+        status: invitation.status,
+      },
+      "Invitation sent successfully",
+    ),
+  );
 });
 
 // --- Public: check invite status (frontend uses this to decide redirect) ---
@@ -171,6 +171,11 @@ export const acceptInvite = asyncHandler(async (req, res) => {
     workspace.members.push({ user: req.user._id, role: invitation.role });
     await workspace.save();
   }
+
+  await invalidateWorkspaceCacheForUsers([
+    req.user._id.toString(),
+    workspace.owner.toString(),
+  ]);
 
   invitation.status = "accepted";
   await invitation.save();

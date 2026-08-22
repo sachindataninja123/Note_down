@@ -13,6 +13,7 @@ import {
 } from "../utils/taskCache.js";
 import Notification from "../models/notification.model.js";
 import Workspace from "../models/workspace.model.js";
+import { invalidateNotificationCache } from "../utils/notificationCache.js";
 
 // --- TASK CRUD ---
 
@@ -88,8 +89,6 @@ export const createTask = asyncHandler(async (req, res) => {
     { path: "assignedTo", select: "name email avatar" }, // NEW
   ]);
 
-  // NEW: notify assignees at creation time too, same as assignTask does —
-  // skip notifying yourself if you self-assign on create.
   for (const userId of validAssignees) {
     if (userId.toString() === req.user._id.toString()) continue;
     await Notification.create({
@@ -99,6 +98,7 @@ export const createTask = asyncHandler(async (req, res) => {
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
     });
+    await invalidateNotificationCache(userId.toString()); // NEW
   }
 
   return res
@@ -247,7 +247,6 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
     );
 });
 
-
 export const deleteTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
@@ -329,7 +328,7 @@ export const assignTask = asyncHandler(async (req, res) => {
     (id) => !previousAssignees.includes(id.toString()),
   );
   for (const userId of newlyAssigned) {
-    if (userId.toString() === req.user._id.toString()) continue; // don't notify self-assign
+    if (userId.toString() === req.user._id.toString()) continue;
     await Notification.create({
       recipient: userId,
       task: task._id,
@@ -337,6 +336,7 @@ export const assignTask = asyncHandler(async (req, res) => {
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
     });
+    await invalidateNotificationCache(userId.toString());
   }
 
   return res
