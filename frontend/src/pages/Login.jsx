@@ -11,10 +11,16 @@ import {
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
+
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+  const prefillEmail = searchParams.get("email") || "";
+
   const [formData, setFormData] = useState({
-    email: "",
+    email: prefillEmail,
     password: "",
   });
 
@@ -32,9 +38,9 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated) {
       toast.success("Welcome back! 🎉");
-      navigate("/dashboard", { replace: true });
+      navigate(redirectTo || "/", { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, redirectTo]);
 
   useEffect(() => {
     if (isError && message) {
@@ -122,6 +128,15 @@ export default function Login() {
                   required
                   className="w-full bg-white text-slate-900 placeholder-slate-400 px-4 py-3.5 pr-12 rounded-xl outline-none border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition"
                 />
+
+                <div className="text-right ">
+                  <Link
+                    to="/forgot-password"
+                    className="text-blue-700 text-sm mt-1 cursor-pointer hover:underline duration-200 transition-all"
+                  >
+                    forgot password?
+                  </Link>
+                </div>
 
                 <button
                   type="button"

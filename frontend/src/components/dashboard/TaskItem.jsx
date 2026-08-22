@@ -9,6 +9,7 @@ import {
   uploadAttachment,
   removeAttachment,
 } from "../../features/tasks/taskSlice";
+import TaskComments from "./TaskComments";
 
 export default function TaskItem({
   task,
@@ -181,7 +182,7 @@ export default function TaskItem({
             <div className="flex items-start justify-between gap-2 sm:gap-4">
               <div className="min-w-0 flex-1">
                 <h3
-                  className={`text-[13px] sm:text-[13.5px] font-semibold tracking-tight wrap-break-word ${
+                  className={`text-[13.5px] sm:text-[15px] font-semibold tracking-tight wrap-break-word ${
                     task.completed
                       ? "line-through text-[#B4B5BD]"
                       : "text-[#14151A]"
@@ -329,6 +330,21 @@ export default function TaskItem({
                   {completedSubtasks}/{totalSubtasks}
                 </span>
               )}
+
+              {/* ASSIGNED MEMBERS — new block goes here */}
+              {task.assignedTo && task.assignedTo.length > 0 && (
+                <span className="flex items-center -space-x-1.5">
+                  {task.assignedTo.slice(0, 3).map((a) => (
+                    <span
+                      key={a._id}
+                      title={a.name}
+                      className="w-5 h-5 rounded-full bg-[#EEF2FF] text-[#2F5DFF] border border-white flex items-center justify-center text-[8px] font-bold"
+                    >
+                      {a.name?.[0]?.toUpperCase() || "U"}
+                    </span>
+                  ))}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -370,7 +386,7 @@ export default function TaskItem({
                     />
 
                     <span
-                      className={`text-[11.5px] sm:text-xs wrap-break-word  ${
+                      className={`text-[12px] sm:text-sm wrap-break-word  ${
                         subtask.completed
                           ? "line-through text-[#B4B5BD]"
                           : "text-[#14151A] font-medium"
@@ -474,6 +490,8 @@ export default function TaskItem({
               )}
             </div>
           </div>
+
+          <TaskComments taskId={task._id} />
         </div>
       )}
     </div>

@@ -49,6 +49,7 @@ const taskSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
+        required: true,
       },
     ],
     priority: {
@@ -75,7 +76,7 @@ const taskSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 taskSchema.index({ owner: 1, completed: 1, createdAt: -1 });

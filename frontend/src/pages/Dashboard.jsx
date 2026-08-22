@@ -18,9 +18,8 @@ import ManageCategoriesModal from "../components/dashboard/ManageCategoriesModal
 export default function Dashboard() {
   const dispatch = useDispatch();
 
-  const { tasks, statusFilter, searchQuery, isLoading } = useSelector(
-    (state) => state.tasks,
-  );
+  const { tasks, statusFilter, searchQuery, assignedToMe, isLoading } =
+    useSelector((state) => state.tasks);
   const { selectedCategory } = useSelector((state) => state.categories);
   const { currentWorkspace } = useSelector((state) => state.workspaces);
 
@@ -36,7 +35,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     dispatch(fetchTasks());
-  }, [dispatch, statusFilter, selectedCategory, searchQuery, currentWorkspace]);
+  }, [
+    dispatch,
+    statusFilter,
+    selectedCategory,
+    searchQuery,
+    currentWorkspace,
+    assignedToMe,
+  ]);
 
   const stats = useMemo(() => {
     const total = tasks.length;
@@ -56,7 +62,7 @@ export default function Dashboard() {
     toast.promise(deletePromise, {
       loading: "Deleting task...",
       success: `"${taskTitle}" deleted`,
-      error: "Failed to delete task",
+      error: (err) => err || "Failed to delete task",
     });
 
     try {

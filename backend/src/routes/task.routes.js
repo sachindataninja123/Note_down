@@ -9,19 +9,15 @@ import {
   addSubtask,
   toggleSubtask,
   deleteSubtask,
+  assignTask,
 } from "../controllers/task.controller.js";
 import { isAuth } from "../middlewares/isAuth.js";
 import multer from "multer";
+import upload from "../middlewares/multer.middleware.js";
 import {
   uploadTaskAttachment,
   deleteTaskAttachment,
 } from "../controllers/attachment.controller.js";
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-});
-
 
 const taskRouter = express.Router();
 
@@ -36,6 +32,7 @@ taskRouter.patch("/:id/toggle", toggleTaskStatus);
 taskRouter.post("/:id/subtasks", addSubtask);
 taskRouter.patch("/:id/subtasks/:subtaskId/toggle", toggleSubtask);
 taskRouter.delete("/:id/subtasks/:subtaskId", deleteSubtask);
+taskRouter.patch("/:id/assign", assignTask)
 
 // Attachment endpoints
 taskRouter.post("/:id/attachments", upload.single("file"), uploadTaskAttachment);

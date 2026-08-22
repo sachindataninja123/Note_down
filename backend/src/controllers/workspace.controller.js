@@ -6,6 +6,12 @@ import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import {
+  getCachedWorkspaces,
+  setCachedWorkspaces,
+  invalidateWorkspaceCache,
+  invalidateWorkspaceCacheForUsers,
+} from "../utils/workspaceCache.js";
 
 // Create Workspace
 export const createWorkspace = asyncHandler(async (req, res) => {
@@ -22,6 +28,8 @@ export const createWorkspace = asyncHandler(async (req, res) => {
     members: [{ user: req.user._id, role: "admin" }],
   });
 
+  await invalidateWorkspaceCache(req.user._id.toString()); // NEW
+
   return res
     .status(201)
     .json(new ApiResponse(201, workspace, "Workspace created successfully"));
@@ -29,18 +37,29 @@ export const createWorkspace = asyncHandler(async (req, res) => {
 
 // Get User Workspaces
 export const getUserWorkspaces = asyncHandler(async (req, res) => {
+  const userId = req.user._id.toString();
+
+  const cached = await getCachedWorkspaces(userId); // NEW
+  if (cached) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, cached, "Workspaces fetched successfully"));
+  }
+
   const workspaces = await Workspace.find({
     $or: [{ owner: req.user._id }, { "members.user": req.user._id }],
   })
     .populate("owner", "name email avatar")
     .populate("members.user", "name email avatar");
 
+  setCachedWorkspaces(userId, workspaces); // NEW — don't block the response
+
   return res
     .status(200)
     .json(new ApiResponse(200, workspaces, "Workspaces fetched successfully"));
 });
 
-// NEW: Delete Workspace (owner-only, cascades to its tasks + notifications)
+// Delete Workspace (owner-only, cascades to its tasks + notifications)
 export const deleteWorkspace = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -48,30 +67,25 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid Workspace ID");
   }
 
-  // Only the owner can delete — being an "admin" member is not enough,
-  // since this is destructive and irreversible for everyone in the team.
   const workspace = await Workspace.findOne({ _id: id, owner: req.user._id });
   if (!workspace) {
-    // Distinguish "doesn't exist" from "exists but you're not the owner"
-    // only via message, not status — avoid leaking existence info either way.
     throw new ApiError(403, "Only the workspace owner can delete this workspace");
   }
 
-  // Find every task that belongs to this workspace before deleting anything,
-  // so we can clean up what references them.
   const workspaceTasks = await Task.find({ workspace: id }, "_id");
   const taskIds = workspaceTasks.map((t) => t._id);
-
-  // NOTE: task attachments live on Cloudinary. Deleting the Task documents
-  // does NOT delete the uploaded files there — if you care about orphaned
-  // storage, loop each task's attachments and call
-  // cloudinary.uploader.destroy(publicId) here before removing the tasks.
-  // Left out by default since it turns this into N cloud API calls per
-  // delete; wire it in if storage cost/cleanup matters for you.
 
   await Notification.deleteMany({ task: { $in: taskIds } });
   await Task.deleteMany({ workspace: id });
   await Workspace.findByIdAndDelete(id);
+
+  // NEW: every member (owner + all members) had this workspace in their
+  // cached list — invalidate all of them, not just the actor.
+  const affectedUserIds = [
+    workspace.owner.toString(),
+    ...workspace.members.map((m) => m.user.toString()),
+  ];
+  await invalidateWorkspaceCacheForUsers(affectedUserIds);
 
   return res
     .status(200)
@@ -82,41 +96,6 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
         "Workspace and its tasks deleted successfully"
       )
     );
-});
-
-// Add Member by Email
-export const addMember = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { email, role } = req.body || {};
-
-  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Workspace ID");
-  if (!email) throw new ApiError(400, "User email is required");
-
-  const workspace = await Workspace.findOne({ _id: id, owner: req.user._id });
-  if (!workspace) {
-    throw new ApiError(403, "Only the workspace owner can add members");
-  }
-
-  const userToAdd = await User.findOne({ email: email.toLowerCase().trim() });
-  if (!userToAdd) {
-    throw new ApiError(404, "No user found with this email");
-  }
-
-  const alreadyMember = workspace.members.some(
-    (m) => m.user.toString() === userToAdd._id.toString()
-  );
-  if (alreadyMember) {
-    throw new ApiError(409, "User is already a member of this workspace");
-  }
-
-  workspace.members.push({ user: userToAdd._id, role: role || "member" });
-  await workspace.save();
-
-  const populated = await workspace.populate("members.user", "name email avatar");
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, populated, "Member added successfully"));
 });
 
 // Remove Member
@@ -130,14 +109,16 @@ export const removeMember = asyncHandler(async (req, res) => {
   const workspace = await Workspace.findOne({ _id: id, owner: req.user._id });
   if (!workspace) throw new ApiError(403, "Only the owner can remove members");
 
-  // FIX: you can't remove the owner from their own workspace via this route
-  // — that would leave the workspace ownerless while still existing.
   if (memberId === req.user._id.toString()) {
     throw new ApiError(400, "The owner cannot be removed. Delete the workspace instead.");
   }
 
   workspace.members = workspace.members.filter((m) => m.user.toString() !== memberId);
   await workspace.save();
+
+  // NEW: invalidate both the owner's cache (member list changed) and the
+  // removed member's cache (this workspace disappears from their list).
+  await invalidateWorkspaceCacheForUsers([req.user._id.toString(), memberId]);
 
   const populated = await workspace.populate("members.user", "name email avatar");
 

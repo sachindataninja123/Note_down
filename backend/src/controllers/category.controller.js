@@ -4,8 +4,13 @@ import Task from "../models/task.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import {
+  getCachedCategories,
+  setCachedCategories,
+  invalidateCategoryCache,
+} from "../utils/categoryCache.js";
 
-// 1. Create a Category
+// Create a Category
 export const createCategory = asyncHandler(async (req, res) => {
   const { name, color, icon } = req.body || {};
 
@@ -29,21 +34,34 @@ export const createCategory = asyncHandler(async (req, res) => {
     owner: req.user._id,
   });
 
+  await invalidateCategoryCache(req.user._id.toString()); // NEW
+
   return res
     .status(201)
     .json(new ApiResponse(201, category, "Category created successfully"));
 });
 
-// 2. Get All User Categories
+// Get All User Categories
 export const getCategories = asyncHandler(async (req, res) => {
+  const userId = req.user._id.toString();
+
+  const cached = await getCachedCategories(userId); // NEW
+  if (cached) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, cached, "Categories fetched successfully"));
+  }
+
   const categories = await Category.find({ owner: req.user._id }).sort({ name: 1 });
+
+  setCachedCategories(userId, categories); // NEW
 
   return res
     .status(200)
     .json(new ApiResponse(200, categories, "Categories fetched successfully"));
 });
 
-// 3. Update Category
+// Update Category
 export const updateCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, color, icon } = req.body || {};
@@ -70,12 +88,14 @@ export const updateCategory = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Category not found");
   }
 
+  await invalidateCategoryCache(req.user._id.toString()); // NEW
+
   return res
     .status(200)
     .json(new ApiResponse(200, updatedCategory, "Category updated successfully"));
 });
 
-// 4. Delete Category (and unlink from tasks)
+// Delete Category (and unlink from tasks)
 export const deleteCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -92,11 +112,12 @@ export const deleteCategory = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Category not found");
   }
 
-  // Remove reference from any tasks linked to this category
   await Task.updateMany(
     { owner: req.user._id, category: id },
     { $set: { category: null } }
   );
+
+  await invalidateCategoryCache(req.user._id.toString()); // NEW
 
   return res
     .status(200)

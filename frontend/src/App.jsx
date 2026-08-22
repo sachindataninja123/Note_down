@@ -12,6 +12,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
 
 import { Toaster } from "react-hot-toast";
+import Profile from "./pages/Profile";
+import ForgotPassword from "./pages/ForgotPassword";
+import InviteAccept from "./pages/InviteAccept";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -33,6 +36,17 @@ export default function App() {
         />
 
         <Route
+          path="/forgot-password"
+          element={
+            <GuestRoute>
+              <ForgotPassword />
+            </GuestRoute>
+          }
+        />
+
+        <Route path="/invite/:token" element={<InviteAccept />} />
+
+        <Route
           path="/register"
           element={
             <GuestRoute>
@@ -46,6 +60,15 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />

@@ -4,6 +4,15 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { genAccessToken, genRefreshToken } from "../utils/generateToken.js";
+import {
+  generateOtp,
+  hashOtp,
+  compareOtp,
+  OTP_EXPIRY_MINUTES,
+  OTP_RESEND_COOLDOWN_SECONDS,
+  MAX_OTP_ATTEMPTS,
+} from "../utils/otp.js";
+import { sendResetOtpEmail } from "../utils/sendOtpEmail.js";
 
 // --- Helpers ---
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,10 +37,22 @@ const getCookieOptions = (maxAge = null) => {
 const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15m
 const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7d
 
+const RESET_TOKEN_SECRET =
+  process.env.RESET_TOKEN_SECRET || process.env.REFRESH_TOKEN_SECRET;
+const RESET_TOKEN_EXPIRY = "10m";
+
 const setAuthCookies = (res, accessToken, refreshToken) => {
-  res.cookie("accessToken", accessToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE));
+  res.cookie(
+    "accessToken",
+    accessToken,
+    getCookieOptions(ACCESS_TOKEN_MAX_AGE),
+  );
   if (refreshToken) {
-    res.cookie("refreshToken", refreshToken, getCookieOptions(REFRESH_TOKEN_MAX_AGE));
+    res.cookie(
+      "refreshToken",
+      refreshToken,
+      getCookieOptions(REFRESH_TOKEN_MAX_AGE),
+    );
   }
 };
 
@@ -58,7 +79,7 @@ export const registerUser = asyncHandler(async (req, res) => {
   if (password.length < MIN_PASSWORD_LENGTH) {
     throw new ApiError(
       400,
-      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
     );
   }
 
@@ -114,7 +135,9 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, { user: safeUser }, "User logged in successfully!"));
+    .json(
+      new ApiResponse(200, { user: safeUser }, "User logged in successfully!"),
+    );
 });
 
 export const getMe = asyncHandler(async (req, res) => {
@@ -137,12 +160,17 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    decoded = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET,
+    );
   } catch (error) {
     throw new ApiError(401, "Invalid or expired refresh token");
   }
 
-  const user = await User.findById(decoded._id || decoded.id).select("-password");
+  const user = await User.findById(decoded._id || decoded.id).select(
+    "-password",
+  );
   if (!user) {
     throw new ApiError(401, "User no longer exists");
   }
@@ -173,4 +201,251 @@ export const logout = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+
+  // 1. Validate email input
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  assertPlainString(email, "Email");
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
+    throw new ApiError(400, "Please provide a valid email address");
+  }
+
+  // 2. Lookup user
+  const user = await User.findOne({
+    email: normalizedEmail,
+  }).select("+resetOtp +resetOtpExpiry +resetOtpAttempts +resetOtpLastSentAt");
+
+  // 3. User Enumeration Protection (Return identical generic success if not found)
+  if (!user) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {},
+          "If an account exists with this email, an OTP has been sent"
+        )
+      );
+  }
+
+  // 4. Rate-limiting / Cooldown Check
+  if (
+    user.resetOtpLastSentAt &&
+    Date.now() - user.resetOtpLastSentAt.getTime() <
+      OTP_RESEND_COOLDOWN_SECONDS * 1000
+  ) {
+    const elapsedSeconds =
+      (Date.now() - user.resetOtpLastSentAt.getTime()) / 1000;
+    const waitSeconds = Math.ceil(
+      OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds
+    );
+
+    throw new ApiError(
+      429,
+      `Please wait ${waitSeconds}s before requesting another OTP`
+    );
+  }
+
+  // 5. Generate and store OTP data
+  const otp = generateOtp();
+  const hashedOtp = await hashOtp(otp);
+
+  user.resetOtp = hashedOtp;
+  user.resetOtpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+  user.resetOtpAttempts = 0;
+  user.resetOtpLastSentAt = new Date();
+
+  await user.save();
+
+  // 6. Send OTP with automatic state rollback on failure
+  try {
+    await sendResetOtpEmail(user.email, otp);
+  } catch (emailError) {
+    console.error("❌ SMTP Delivery Failed:", emailError.message);
+
+    // Rollback OTP state so user isn't locked out by a failed send
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
+    user.resetOtpAttempts = 0;
+    user.resetOtpLastSentAt = null;
+    await user.save();
+
+    throw new ApiError(
+      500,
+      `Failed to deliver email: ${emailError.message || "SMTP connection error"}`
+    );
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        {},
+        "If an account exists with this email, an OTP has been sent"
+      )
+    );
+});
+export const verifyResetOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body || {};
+
+  if (!email || !otp) {
+    throw new ApiError(400, "Email and OTP are required");
+  }
+  assertPlainString(email, "Email");
+  assertPlainString(otp, "OTP");
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+resetOtp +resetOtpExpiry +resetOtpAttempts",
+  );
+
+  if (!user || !user.resetOtp || !user.resetOtpExpiry) {
+    throw new ApiError(400, "Invalid or expired OTP");
+  }
+
+  if (user.resetOtpExpiry.getTime() < Date.now()) {
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
+    user.resetOtpAttempts = 0;
+    await user.save();
+    throw new ApiError(400, "OTP has expired, please request a new one");
+  }
+
+  if (user.resetOtpAttempts >= MAX_OTP_ATTEMPTS) {
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
+    user.resetOtpAttempts = 0;
+    await user.save();
+    throw new ApiError(
+      429,
+      "Too many incorrect attempts. Please request a new OTP",
+    );
+  }
+
+  const isValid = await compareOtp(otp, user.resetOtp);
+
+  if (!isValid) {
+    user.resetOtpAttempts += 1;
+    await user.save();
+    throw new ApiError(400, "Incorrect OTP");
+  }
+
+  // OTP verified — clear it so it can't be reused, and issue a short-lived
+  // reset token that authorizes the actual password change.
+  user.resetOtp = null;
+  user.resetOtpExpiry = null;
+  user.resetOtpAttempts = 0;
+  await user.save();
+
+  const resetToken = jwt.sign(
+    { _id: user._id, purpose: "password_reset" },
+    RESET_TOKEN_SECRET,
+    { expiresIn: RESET_TOKEN_EXPIRY },
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { resetToken }, "OTP verified successfully"));
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { resetToken, newPassword } = req.body || {};
+
+  if (!resetToken || !newPassword) {
+    throw new ApiError(400, "Reset token and new password are required");
+  }
+  assertPlainString(resetToken, "Reset token");
+  assertPlainString(newPassword, "New password");
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new ApiError(
+      400,
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    );
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(resetToken, RESET_TOKEN_SECRET);
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired reset token");
+  }
+
+  if (decoded.purpose !== "password_reset") {
+    throw new ApiError(401, "Invalid reset token");
+  }
+
+  const user = await User.findById(decoded._id);
+  if (!user) {
+    throw new ApiError(401, "User no longer exists");
+  }
+
+  user.password = newPassword; // hashed by the pre("save") hook
+  // Invalidate any existing sessions/refresh tokens after a password reset.
+  user.tokenVersion += 1;
+  await user.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password reset successfully"));
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  if (!req.user?._id) {
+    throw new ApiError(401, "Unauthorized access");
+  }
+
+  const { oldPassword, newPassword } = req.body || {};
+
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "Old password and new password are required");
+  }
+
+  assertPlainString(oldPassword, "Old password");
+  assertPlainString(newPassword, "New password");
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new ApiError(
+      400,
+      `New password must be at least ${MIN_PASSWORD_LENGTH} characters`
+    );
+  }
+
+  if (oldPassword === newPassword) {
+    throw new ApiError(400, "New password must be different from the old password");
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(401, "User no longer exists");
+  }
+
+  const isMatch = await user.comparePassword(oldPassword);
+  if (!isMatch) {
+    throw new ApiError(401, "Old password is incorrect");
+  }
+
+  user.password = newPassword; // re-hashed by the pre("save") hook
+  // Invalidate existing sessions elsewhere (forces re-login on other devices)
+  user.tokenVersion += 1;
+  await user.save();
+
+  const accessToken = genAccessToken(user);
+  const refreshToken = genRefreshToken(user);
+  setAuthCookies(res, accessToken, refreshToken);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
 });

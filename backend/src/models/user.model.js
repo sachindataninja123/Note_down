@@ -20,18 +20,35 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters"],
     },
-    avatar: {
-      type: String,
-      default: "",
-    },
     tokenVersion: {
       type: Number,
       default: 0,
     },
+
+    resetOtp: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetOtpExpiry: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    resetOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    resetOtpLastSentAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userSchema.pre("save", async function () {
