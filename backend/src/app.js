@@ -11,6 +11,7 @@ import notificationRouter from "./routes/notification.routes.js";
 
 import { ApiError } from "./utils/ApiError.js";
 import invitationRouter from "./routes/invitation.routes.js";
+import commentRouter from "./routes/comment.routes.js";
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use("/api/v1/tasks", taskRouter);
 app.use("/api/v1/workspaces", workspaceRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/invitations", invitationRouter);
+app.use("/api/v1/tasks", commentRouter);
 
 // 404 Catch-all Handler
 app.use((req, res, next) => {

@@ -9,6 +9,7 @@ import {
   uploadAttachment,
   removeAttachment,
 } from "../../features/tasks/taskSlice";
+import TaskComments from "./TaskComments";
 
 export default function TaskItem({
   task,
@@ -329,6 +330,21 @@ export default function TaskItem({
                   {completedSubtasks}/{totalSubtasks}
                 </span>
               )}
+
+              {/* ASSIGNED MEMBERS — new block goes here */}
+              {task.assignedTo && task.assignedTo.length > 0 && (
+                <span className="flex items-center -space-x-1.5">
+                  {task.assignedTo.slice(0, 3).map((a) => (
+                    <span
+                      key={a._id}
+                      title={a.name}
+                      className="w-5 h-5 rounded-full bg-[#EEF2FF] text-[#2F5DFF] border border-white flex items-center justify-center text-[8px] font-bold"
+                    >
+                      {a.name?.[0]?.toUpperCase() || "U"}
+                    </span>
+                  ))}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -474,6 +490,8 @@ export default function TaskItem({
               )}
             </div>
           </div>
+
+          <TaskComments taskId={task._id} />
         </div>
       )}
     </div>

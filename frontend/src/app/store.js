@@ -4,6 +4,7 @@ import categoryReducer from "../features/categories/categorySlice";
 import taskReducer from "../features/tasks/taskSlice";
 import notificationReducer from "../features/notifications/notificationSlice";
 import workspaceReducer from "../features/workspaces/workspaceSlice";
+import commentReducer from "../features/comments/commentSlice";
 
 export const store = configureStore({
   reducer: {
@@ -12,5 +13,6 @@ export const store = configureStore({
     tasks: taskReducer,
     notifications: notificationReducer,
     workspaces: workspaceReducer,
+    comments: commentReducer,
   },
 });

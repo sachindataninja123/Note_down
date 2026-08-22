@@ -11,12 +11,22 @@ import {
   setCachedTasks,
   invalidateTaskCache,
 } from "../utils/taskCache.js";
+import Notification from "../models/notification.model.js";
+import Workspace from "../models/workspace.model.js";
 
 // --- TASK CRUD ---
 
 export const createTask = asyncHandler(async (req, res) => {
-  const { title, description, category, priority, dueDate, subtasks, workspace } =
-    req.body || {};
+  const {
+    title,
+    description,
+    category,
+    priority,
+    dueDate,
+    subtasks,
+    workspace,
+    assignedTo, // NEW
+  } = req.body || {};
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
@@ -27,7 +37,36 @@ export const createTask = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed) throw new ApiError(403, "You are not a member of this workspace");
+    if (!allowed)
+      throw new ApiError(403, "You are not a member of this workspace");
+  }
+
+  // NEW: validate assignedTo — only meaningful on workspace tasks, and
+  // every assignee must actually belong to that workspace.
+  let validAssignees = [];
+  if (assignedTo !== undefined && assignedTo !== null) {
+    if (!Array.isArray(assignedTo)) {
+      throw new ApiError(400, "assignedTo must be an array of user IDs");
+    }
+
+    if (assignedTo.length > 0 && !workspace) {
+      throw new ApiError(400, "Personal tasks cannot be assigned to others");
+    }
+
+    for (const userId of assignedTo) {
+      if (!mongoose.isValidObjectId(userId)) {
+        throw new ApiError(400, "Invalid user ID in assignedTo list");
+      }
+      const isMember = await isWorkspaceMember(workspace, { _id: userId });
+      if (!isMember) {
+        throw new ApiError(
+          400,
+          "All assignees must be members of this workspace",
+        );
+      }
+    }
+
+    validAssignees = assignedTo;
   }
 
   const task = await Task.create({
@@ -38,14 +77,33 @@ export const createTask = asyncHandler(async (req, res) => {
     dueDate: dueDate ? new Date(dueDate) : null,
     subtasks: Array.isArray(subtasks) ? subtasks : [],
     workspace: workspace || null,
+    assignedTo: validAssignees, // NEW
     owner: req.user._id,
   });
 
   await invalidateTaskCache(scopeFromTask(task));
 
+  const populated = await task.populate([
+    { path: "category", select: "name color icon" },
+    { path: "assignedTo", select: "name email avatar" }, // NEW
+  ]);
+
+  // NEW: notify assignees at creation time too, same as assignTask does —
+  // skip notifying yourself if you self-assign on create.
+  for (const userId of validAssignees) {
+    if (userId.toString() === req.user._id.toString()) continue;
+    await Notification.create({
+      recipient: userId,
+      task: task._id,
+      title: "Task assigned to you",
+      message: `${req.user.name} assigned you to "${task.title}"`,
+      type: "ASSIGNED",
+    });
+  }
+
   return res
     .status(201)
-    .json(new ApiResponse(201, task, "Task created successfully"));
+    .json(new ApiResponse(201, populated, "Task created successfully"));
 });
 
 export const getAllTasks = asyncHandler(async (req, res) => {
@@ -59,7 +117,8 @@ export const getAllTasks = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid workspace ID");
     }
     const allowed = await isWorkspaceMember(workspace, req.user);
-    if (!allowed) throw new ApiError(403, "You do not have access to this workspace");
+    if (!allowed)
+      throw new ApiError(403, "You do not have access to this workspace");
 
     query.workspace = workspace;
     scope = buildScope({ workspaceId: workspace });
@@ -74,6 +133,10 @@ export const getAllTasks = asyncHandler(async (req, res) => {
   if (category && category !== "All") query.category = category;
   if (priority && priority !== "All") query.priority = priority;
 
+  if (req.query.assignedToMe === "true") {
+    query.assignedTo = req.user._id;
+  }
+
   const hasSearch = Boolean(search && search.trim());
   if (hasSearch) {
     const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -83,26 +146,21 @@ export const getAllTasks = asyncHandler(async (req, res) => {
     ];
   }
 
-  // CHANGED: search queries skip the cache entirely, both read and write.
-  // Two reasons: (1) search terms are rarely repeated character-for-
-  // character, so the hit rate would be near zero anyway, and (2) every
-  // unique search string was getting SADD'd into that scope's tracked
-  // key-set, which just bloats the set with entries that will basically
-  // never be read again before their TTL expires. Filters like
-  // status/category/priority stay cached since those DO repeat constantly
-  // (every user clicking "Active" tab hits the exact same key).
   const cacheable = !hasSearch;
 
   if (cacheable) {
     const cached = await getCachedTasks(scope, req.query);
     if (cached) {
-      return res.status(200).json(new ApiResponse(200, cached, "Tasks fetched successfully"));
+      return res
+        .status(200)
+        .json(new ApiResponse(200, cached, "Tasks fetched successfully"));
     }
   }
 
   const tasks = await Task.find(query)
     .populate("category", "name color icon")
     .populate("owner", "name email")
+    .populate("assignedTo", "name email avatar")
     .sort({ completed: 1, createdAt: -1 });
 
   if (cacheable) {
@@ -145,16 +203,18 @@ export const updateTask = asyncHandler(async (req, res) => {
     updates.title = title.trim();
   }
   if (description !== undefined) {
-    updates.description = typeof description === "string" ? description.trim() : "";
+    updates.description =
+      typeof description === "string" ? description.trim() : "";
   }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
-  if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+  if (dueDate !== undefined)
+    updates.dueDate = dueDate ? new Date(dueDate) : null;
 
   const updatedTask = await Task.findByIdAndUpdate(
     id,
     { $set: updates },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(updatedTask));
@@ -179,22 +239,109 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(
-      new ApiResponse(200, task, `Task marked as ${task.completed ? "completed" : "active"}`)
+      new ApiResponse(
+        200,
+        task,
+        `Task marked as ${task.completed ? "completed" : "active"}`,
+      ),
     );
 });
+
 
 export const deleteTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
-  const deletedTask = await Task.findOneAndDelete({ _id: id, owner: req.user._id });
-  if (!deletedTask) throw new ApiError(404, "Task not found");
+  const task = await Task.findById(id);
+  if (!task) throw new ApiError(404, "Task not found");
 
-  await invalidateTaskCache(scopeFromTask(deletedTask));
+  const isOwner = task.owner.toString() === req.user._id.toString();
+
+  let isWorkspaceAdmin = false;
+  if (task.workspace) {
+    const workspace = await Workspace.findOne({
+      _id: task.workspace,
+      $or: [
+        { owner: req.user._id },
+        { members: { $elemMatch: { user: req.user._id, role: "admin" } } },
+      ],
+    });
+    isWorkspaceAdmin = Boolean(workspace);
+  }
+
+  if (!isOwner && !isWorkspaceAdmin) {
+    throw new ApiError(403, "This is not your task");
+  }
+
+  await Task.findByIdAndDelete(id);
+
+  await invalidateTaskCache(scopeFromTask(task));
 
   return res
     .status(200)
-    .json(new ApiResponse(200, { taskId: deletedTask._id }, "Task deleted successfully"));
+    .json(
+      new ApiResponse(200, { taskId: task._id }, "Task deleted successfully"),
+    );
+});
+
+export const assignTask = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userIds } = req.body || {}; // array of user IDs to assign
+
+  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
+  if (!Array.isArray(userIds))
+    throw new ApiError(400, "userIds must be an array");
+
+  const task = await getAccessibleTask(id, req.user);
+  if (!task) throw new ApiError(404, "Task not found");
+
+  if (!task.workspace) {
+    throw new ApiError(400, "Personal tasks cannot be assigned to others");
+  }
+
+  // Validate every proposed assignee is actually a workspace member
+  for (const userId of userIds) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new ApiError(400, "Invalid user ID in assignment list");
+    }
+    const allowed = await isWorkspaceMember(task.workspace, { _id: userId });
+    if (!allowed) {
+      throw new ApiError(
+        400,
+        "All assignees must be members of this workspace",
+      );
+    }
+  }
+
+  const previousAssignees = (task.assignedTo || []).map((a) => a.toString());
+  task.assignedTo = userIds;
+  await task.save();
+
+  const populated = await task.populate([
+    { path: "category", select: "name color icon" },
+    { path: "assignedTo", select: "name email avatar" },
+  ]);
+
+  await invalidateTaskCache(scopeFromTask(task));
+
+  // Notify newly-added assignees only (not people already assigned)
+  const newlyAssigned = userIds.filter(
+    (id) => !previousAssignees.includes(id.toString()),
+  );
+  for (const userId of newlyAssigned) {
+    if (userId.toString() === req.user._id.toString()) continue; // don't notify self-assign
+    await Notification.create({
+      recipient: userId,
+      task: task._id,
+      title: "Task assigned to you",
+      message: `${req.user.name} assigned you to "${task.title}"`,
+      type: "ASSIGNED",
+    });
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, populated, "Task assignment updated"));
 });
 
 // --- SUBTASK ACTIONS ---
@@ -214,7 +361,7 @@ export const addSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $push: { subtasks: { title: title.trim(), completed: false } } },
-    { new: true, runValidators: true }
+    { new: true, runValidators: true },
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));
@@ -260,7 +407,7 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndUpdate(
     id,
     { $pull: { subtasks: { _id: subtaskId } } },
-    { new: true }
+    { new: true },
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));

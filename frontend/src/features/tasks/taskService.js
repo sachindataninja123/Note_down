@@ -24,6 +24,12 @@ const updateTask = async (taskId, taskData) => {
   return response.data;
 };
 
+// PATCH /api/v1/tasks/:taskId/assign
+const assignTask = async (taskId, userIds) => {
+  const response = await api.patch(`/tasks/${taskId}/assign`, { userIds });
+  return response.data;
+};
+
 // PATCH /api/v1/tasks/:id/toggle
 const toggleTask = async (taskId) => {
   const response = await api.patch(`/tasks/${taskId}/toggle`);
@@ -87,6 +93,7 @@ const taskService = {
   createTask,
   updateTask,
   toggleTask,
+  assignTask,
   deleteTask,
   addSubtask,
   toggleSubtask,

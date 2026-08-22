@@ -25,7 +25,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["DUE_SOON", "OVERDUE", "ASSIGNED", "WORKSPACE_INVITE", "SYSTEM"],
+      enum: ["DUE_SOON", "OVERDUE", "ASSIGNED", "WORKSPACE_INVITE", "SYSTEM", "COMMENT","MENTION"],
       default: "SYSTEM",
     },
     isRead: {

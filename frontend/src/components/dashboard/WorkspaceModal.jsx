@@ -255,7 +255,6 @@ export default function WorkspaceModal({ isOpen, onClose }) {
                       className="bg-[#FAFAF8] border border-[#ECECE6] rounded-xl px-2 py-2 text-xs text-[#14151A] outline-none"
                     >
                       <option value="member">Member</option>
-                      <option value="viewer">Viewer</option>
                       <option value="admin">Admin</option>
                     </select>
                     <button

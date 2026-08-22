@@ -9,6 +9,7 @@ import {
   addSubtask,
   toggleSubtask,
   deleteSubtask,
+  assignTask,
 } from "../controllers/task.controller.js";
 import { isAuth } from "../middlewares/isAuth.js";
 import multer from "multer";
@@ -31,6 +32,7 @@ taskRouter.patch("/:id/toggle", toggleTaskStatus);
 taskRouter.post("/:id/subtasks", addSubtask);
 taskRouter.patch("/:id/subtasks/:subtaskId/toggle", toggleSubtask);
 taskRouter.delete("/:id/subtasks/:subtaskId", deleteSubtask);
+taskRouter.patch("/:id/assign", assignTask)
 
 // Attachment endpoints
 taskRouter.post("/:id/attachments", upload.single("file"), uploadTaskAttachment);

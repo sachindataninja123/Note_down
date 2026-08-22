@@ -6,6 +6,7 @@ const initialState = {
   currentTask: null,
   statusFilter: "all",
   searchQuery: "",
+  assignedToMe: false, // NEW
   isLoading: false,
   isError: false,
   message: "",
@@ -17,7 +18,7 @@ export const fetchTasks = createAsyncThunk(
   async (_, thunkAPI) => {
     try {
       const state = thunkAPI.getState();
-      const { statusFilter, searchQuery } = state.tasks;
+      const { statusFilter, searchQuery, assignedToMe } = state.tasks; // NEW: assignedToMe
       const { selectedCategory } = state.categories;
       const { currentWorkspace } = state.workspaces;
 
@@ -26,8 +27,8 @@ export const fetchTasks = createAsyncThunk(
       if (selectedCategory && selectedCategory !== "All")
         params.category = selectedCategory;
       if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (assignedToMe) params.assignedToMe = "true"; // NEW
 
-      // Pass the active workspace ID
       if (currentWorkspace?._id) {
         params.workspace = currentWorkspace._id;
       } else {
@@ -177,6 +178,22 @@ export const removeAttachment = createAsyncThunk(
   },
 );
 
+// NEW: assign task thunk (used by EditTaskModal/CreateTaskModal)
+export const assignTask = createAsyncThunk(
+  "tasks/assign",
+  async ({ taskId, userIds }, thunkAPI) => {
+    try {
+      return await taskService.assignTask(taskId, userIds);
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to assign task",
+      );
+    }
+  },
+);
+
 export const taskSlice = createSlice({
   name: "tasks",
   initialState,
@@ -187,13 +204,16 @@ export const taskSlice = createSlice({
     setSearchQuery: (state, action) => {
       state.searchQuery = action.payload;
     },
+    setAssignedToMeFilter: (state, action) => {
+      // NEW
+      state.assignedToMe = action.payload;
+    },
     clearCurrentTask: (state) => {
       state.currentTask = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch All
       .addCase(fetchTasks.pending, (state) => {
         state.isLoading = true;
       })
@@ -207,17 +227,14 @@ export const taskSlice = createSlice({
         state.message = action.payload;
       })
 
-      // Fetch Single
       .addCase(fetchTaskById.fulfilled, (state, action) => {
         state.currentTask = action.payload.data;
       })
 
-      // Add Task
       .addCase(addTask.fulfilled, (state, action) => {
         state.tasks.unshift(action.payload.data);
       })
 
-      // Edit Task
       .addCase(editTask.fulfilled, (state, action) => {
         const updated = action.payload.data;
         const index = state.tasks.findIndex((t) => t._id === updated._id);
@@ -225,12 +242,11 @@ export const taskSlice = createSlice({
         if (state.currentTask?._id === updated._id) state.currentTask = updated;
       })
 
-      // Toggle Task - Optimistic Update
       .addCase(toggleTaskStatus.pending, (state, action) => {
         const taskId = action.meta.arg;
         const task = state.tasks.find((t) => t._id === taskId);
         if (task) {
-          task._previousCompleted = task.completed; // ADD THIS LINE
+          task._previousCompleted = task.completed;
           task.completed = !task.completed;
           state.updatingTasks[taskId] = true;
         }
@@ -254,17 +270,15 @@ export const taskSlice = createSlice({
           task.completed = task._previousCompleted;
           delete task._previousCompleted;
         }
-        delete state.updatingTasks[taskId]; // ADD THIS LINE
+        delete state.updatingTasks[taskId];
       })
 
-      // Delete Task
       .addCase(removeTask.fulfilled, (state, action) => {
         state.tasks = state.tasks.filter(
           (t) => t._id !== action.payload.taskId,
         );
       })
 
-      // Subtasks (Backend returns the updated parent task document)
       .addCase(createSubtask.fulfilled, (state, action) => {
         const updated = action.payload.data;
         const index = state.tasks.findIndex((t) => t._id === updated._id);
@@ -281,7 +295,6 @@ export const taskSlice = createSlice({
         if (index !== -1) state.tasks[index] = updated;
       })
 
-      // Attachments
       .addCase(uploadAttachment.fulfilled, (state, action) => {
         const updated = action.payload.data;
         const index = state.tasks.findIndex((t) => t._id === updated._id);
@@ -295,10 +308,21 @@ export const taskSlice = createSlice({
             (a) => a._id !== attachmentId,
           );
         }
+      })
+
+      // NEW
+      .addCase(assignTask.fulfilled, (state, action) => {
+        const updated = action.payload.data;
+        const index = state.tasks.findIndex((t) => t._id === updated._id);
+        if (index !== -1) state.tasks[index] = updated;
       });
   },
 });
 
-export const { setStatusFilter, setSearchQuery, clearCurrentTask } =
-  taskSlice.actions;
+export const {
+  setStatusFilter,
+  setSearchQuery,
+  setAssignedToMeFilter,
+  clearCurrentTask,
+} = taskSlice.actions;
 export default taskSlice.reducer;
