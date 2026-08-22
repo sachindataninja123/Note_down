@@ -13,7 +13,6 @@ import {
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
 
-
 export default function Login() {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect");
@@ -117,6 +116,7 @@ export default function Login() {
                 Password
               </label>
 
+              {/* Input container */}
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -128,15 +128,6 @@ export default function Login() {
                   required
                   className="w-full bg-white text-slate-900 placeholder-slate-400 px-4 py-3.5 pr-12 rounded-xl outline-none border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition"
                 />
-
-                <div className="text-right ">
-                  <Link
-                    to="/forgot-password"
-                    className="text-blue-700 text-sm mt-1 cursor-pointer hover:underline duration-200 transition-all"
-                  >
-                    forgot password?
-                  </Link>
-                </div>
 
                 <button
                   type="button"
@@ -151,8 +142,17 @@ export default function Login() {
                   )}
                 </button>
               </div>
-            </div>
 
+              {/* Forgot password link below the input */}
+              <div className="text-right mt-1">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
             {/* Submit */}
             <button
               type="submit"
