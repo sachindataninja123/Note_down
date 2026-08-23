@@ -3,7 +3,6 @@
 TaskPulse is a full-stack task management app with support for personal tasks and shared team workspaces — subtasks, file attachments, member invites, and password reset, all built on the MERN stack.
 
 🔗 **Live App:** [note-down-1-8smd.onrender.com](https://note-down-1-8smd.onrender.com/)
-📦 **Repository:** [github.com/sachindataninja123/Note_down](https://github.com/sachindataninja123/Note_down)
 
 > Note: hosted on Render's free tier — the backend may take up to a minute to spin up on first load if it's been idle.
 
