@@ -295,6 +295,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
       )
     );
 });
+
 export const verifyResetOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body || {};
 

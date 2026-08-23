@@ -10,7 +10,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { sendWorkspaceInviteEmail } from "../utils/sendOtpEmail.js";
 import { invalidateWorkspaceCacheForUsers } from "../utils/workspaceCache.js";
 
-
 const INVITE_EXPIRY_DAYS = 7;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
@@ -70,12 +69,27 @@ export const inviteMember = asyncHandler(async (req, res) => {
 
   const inviteLink = `${CLIENT_URL}/invite/${rawToken}`;
 
-  await sendWorkspaceInviteEmail(normalizedEmail, {
-    workspaceName: workspace.name,
-    inviterName: req.user.name,
-    inviteLink,
-    expiryDays: INVITE_EXPIRY_DAYS,
-  });
+  try {
+    await sendWorkspaceInviteEmail(normalizedEmail, {
+      workspaceName: workspace.name,
+      inviterName: req.user.name,
+      inviteLink,
+      expiryDays: INVITE_EXPIRY_DAYS,
+    });
+  } catch (emailError) {
+    // Roll back — don't leave a dead "pending" invite if the email never went out
+    await Invitation.deleteOne({ _id: invitation._id });
+
+    console.error(
+      "❌ Failed to send workspace invite email:",
+      emailError.message,
+    );
+
+    throw new ApiError(
+      500,
+      `Failed to deliver invitation email: ${emailError.message || "email send error"}`,
+    );
+  }
 
   return res.status(201).json(
     new ApiResponse(
