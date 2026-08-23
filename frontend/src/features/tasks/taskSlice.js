@@ -169,7 +169,8 @@ export const removeAttachment = createAsyncThunk(
   "tasks/removeAttachment",
   async ({ taskId, attachmentId }, thunkAPI) => {
     try {
-      return await taskService.deleteAttachment(taskId, attachmentId);
+      const result = await taskService.deleteAttachment(taskId, attachmentId);
+      return { taskId, ...result };
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || error.message,
@@ -284,10 +285,28 @@ export const taskSlice = createSlice({
         const index = state.tasks.findIndex((t) => t._id === updated._id);
         if (index !== -1) state.tasks[index] = updated;
       })
+      .addCase(toggleSubtaskStatus.pending, (state, action) => {
+        const { taskId, subtaskId } = action.meta.arg;
+        const task = state.tasks.find((t) => t._id === taskId);
+        const subtask = task?.subtasks?.find((s) => s._id === subtaskId);
+        if (subtask) {
+          subtask._previousCompleted = subtask.completed;
+          subtask.completed = !subtask.completed;
+        }
+      })
       .addCase(toggleSubtaskStatus.fulfilled, (state, action) => {
         const updated = action.payload.data;
         const index = state.tasks.findIndex((t) => t._id === updated._id);
         if (index !== -1) state.tasks[index] = updated;
+      })
+      .addCase(toggleSubtaskStatus.rejected, (state, action) => {
+        const { taskId, subtaskId } = action.meta.arg;
+        const task = state.tasks.find((t) => t._id === taskId);
+        const subtask = task?.subtasks?.find((s) => s._id === subtaskId);
+        if (subtask && subtask._previousCompleted !== undefined) {
+          subtask.completed = subtask._previousCompleted;
+          delete subtask._previousCompleted;
+        }
       })
       .addCase(removeSubtask.fulfilled, (state, action) => {
         const updated = action.payload.data;

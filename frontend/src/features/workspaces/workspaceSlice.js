@@ -1,9 +1,18 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import workspaceService from "./workspaceService";
 
+const getStoredWorkspace = () => {
+  try {
+    const raw = localStorage.getItem("currentWorkspace");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 const initialState = {
   workspaces: [],
-  currentWorkspace: null,
+  currentWorkspace: getStoredWorkspace(), // was : null
   isLoading: false,
   isError: false,
   message: "",
@@ -90,11 +99,20 @@ export const workspaceSlice = createSlice({
   name: "workspaces",
   initialState,
   reducers: {
-    // Pass a workspace object to switch into it, or `null` to go back to
-    // Personal. The Navbar now calls this with null explicitly for the
-    // "Personal" option.
     setCurrentWorkspace: (state, action) => {
       state.currentWorkspace = action.payload;
+      try {
+        if (action.payload) {
+          localStorage.setItem(
+            "currentWorkspace",
+            JSON.stringify(action.payload),
+          );
+        } else {
+          localStorage.removeItem("currentWorkspace");
+        }
+      } catch {
+        // localStorage unavailable — ignore
+      }
     },
   },
   extraReducers: (builder) => {
@@ -114,6 +132,9 @@ export const workspaceSlice = createSlice({
           !state.workspaces.some((w) => w._id === state.currentWorkspace._id)
         ) {
           state.currentWorkspace = null;
+          try {
+            localStorage.removeItem("currentWorkspace");
+          } catch {}
         }
       })
       .addCase(fetchWorkspaces.rejected, (state, action) => {
@@ -133,6 +154,9 @@ export const workspaceSlice = createSlice({
         // If the deleted workspace was the active one, drop back to Personal.
         if (state.currentWorkspace?._id === workspaceId) {
           state.currentWorkspace = null;
+          try {
+            localStorage.removeItem("currentWorkspace");
+          } catch {}
         }
       })
       .addCase(inviteMember.fulfilled, () => {
