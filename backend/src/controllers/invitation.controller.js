@@ -11,7 +11,8 @@ import { sendWorkspaceInviteEmail } from "../utils/sendOtpEmail.js";
 import { invalidateWorkspaceCacheForUsers } from "../utils/workspaceCache.js";
 
 const INVITE_EXPIRY_DAYS = 7;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL =
+  process.env.CLIENT_URL || "https://note-down-1-8smd.onrender.com";
 
 // --- Invite a member (replaces old addMember) ---
 export const inviteMember = asyncHandler(async (req, res) => {
