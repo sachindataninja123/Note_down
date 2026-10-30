@@ -14,6 +14,10 @@ import {
 import Notification from "../models/notification.model.js";
 import Workspace from "../models/workspace.model.js";
 import { invalidateNotificationCache } from "../utils/notificationCache.js";
+import {
+  assertValidStatus,
+  buildStatusCondition,
+} from "../utils/taskStatus.js";
 
 // --- TASK CRUD ---
 
@@ -27,7 +31,10 @@ export const createTask = asyncHandler(async (req, res) => {
     subtasks,
     workspace,
     assignedTo, // NEW
+    status,
   } = req.body || {};
+
+  if (status !== undefined) assertValidStatus(status);
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
@@ -75,6 +82,7 @@ export const createTask = asyncHandler(async (req, res) => {
     description: description ? description.trim() : "",
     category: category || null,
     priority: priority || "Medium",
+    status: status || "todo",
     dueDate: dueDate ? new Date(dueDate) : null,
     subtasks: Array.isArray(subtasks) ? subtasks : [],
     workspace: workspace || null,
@@ -128,8 +136,8 @@ export const getAllTasks = asyncHandler(async (req, res) => {
     scope = buildScope({ userId: req.user._id });
   }
 
-  if (status === "active") query.completed = false;
-  if (status === "completed") query.completed = true;
+  const statusCondition = buildStatusCondition(status);
+  if (statusCondition) query.status = statusCondition;
   if (category && category !== "All") query.category = category;
   if (priority && priority !== "All") query.priority = priority;
 
@@ -188,7 +196,8 @@ export const getTaskById = asyncHandler(async (req, res) => {
 
 export const updateTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, description, category, priority, dueDate } = req.body || {};
+  const { title, description, category, priority, dueDate, status } =
+    req.body || {};
 
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
@@ -208,6 +217,11 @@ export const updateTask = asyncHandler(async (req, res) => {
   }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
+  if (status !== undefined) {
+    assertValidStatus(status);
+    updates.status = status;
+    updates.completed = status === "done";
+  }
   if (dueDate !== undefined)
     updates.dueDate = dueDate ? new Date(dueDate) : null;
 
@@ -215,7 +229,9 @@ export const updateTask = asyncHandler(async (req, res) => {
     id,
     { $set: updates },
     { new: true, runValidators: true },
-  ).populate("category", "name color icon");
+  )
+    .populate("category", "name color icon")
+    .populate("assignedTo", "name email avatar");
 
   await invalidateTaskCache(scopeFromTask(updatedTask));
 
@@ -231,7 +247,8 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
-  task.completed = !task.completed;
+  // Setting status is enough: the model hook keeps `completed` in sync.
+  task.status = task.status === "done" ? "todo" : "done";
   await task.save();
 
   await invalidateTaskCache(scopeFromTask(task));
@@ -245,6 +262,34 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
         `Task marked as ${task.completed ? "completed" : "active"}`,
       ),
     );
+});
+
+// PATCH /tasks/:id/status  { status } — used by the Kanban board.
+export const updateTaskStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body || {};
+
+  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
+  assertValidStatus(status);
+
+  const task = await getAccessibleTask(id, req.user);
+  if (!task) throw new ApiError(404, "Task not found");
+
+  if (task.status !== status) {
+    task.status = status;
+    await task.save();
+    await invalidateTaskCache(scopeFromTask(task));
+  }
+
+  const populated = await task.populate([
+    { path: "category", select: "name color icon" },
+    { path: "owner", select: "name email" },
+    { path: "assignedTo", select: "name email avatar" },
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, populated, "Task status updated"));
 });
 
 export const deleteTask = asyncHandler(async (req, res) => {

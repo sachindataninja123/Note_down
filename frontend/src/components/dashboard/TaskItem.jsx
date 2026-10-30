@@ -10,6 +10,8 @@ import {
   removeAttachment,
 } from "../../features/tasks/taskSlice";
 import TaskComments from "./TaskComments";
+import Badge from "../ui/Badge";
+import { getStatusMeta, getTaskStatus } from "../../features/tasks/taskStatus";
 
 export default function TaskItem({
   task,
@@ -289,6 +291,12 @@ export default function TaskItem({
               >
                 {task.priority}
               </span>
+
+              {getTaskStatus(task) !== "todo" && (
+                <Badge tone={getStatusMeta(getTaskStatus(task)).tone}>
+                  {getStatusMeta(getTaskStatus(task)).label}
+                </Badge>
+              )}
 
               {task.dueDate && (
                 <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-[#ECECE6]">

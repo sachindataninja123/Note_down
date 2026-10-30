@@ -5,6 +5,7 @@ import {
   getTaskById,
   updateTask,
   toggleTaskStatus,
+  updateTaskStatus,
   deleteTask,
   addSubtask,
   toggleSubtask,
@@ -27,15 +28,20 @@ taskRouter.use(isAuth);
 taskRouter.route("/").post(createTask).get(getAllTasks);
 taskRouter.route("/:id").get(getTaskById).put(updateTask).delete(deleteTask);
 taskRouter.patch("/:id/toggle", toggleTaskStatus);
+taskRouter.patch("/:id/status", updateTaskStatus);
 
 // Subtask Routes
 taskRouter.post("/:id/subtasks", addSubtask);
 taskRouter.patch("/:id/subtasks/:subtaskId/toggle", toggleSubtask);
 taskRouter.delete("/:id/subtasks/:subtaskId", deleteSubtask);
-taskRouter.patch("/:id/assign", assignTask)
+taskRouter.patch("/:id/assign", assignTask);
 
 // Attachment endpoints
-taskRouter.post("/:id/attachments", upload.single("file"), uploadTaskAttachment);
+taskRouter.post(
+  "/:id/attachments",
+  upload.single("file"),
+  uploadTaskAttachment,
+);
 taskRouter.delete("/:id/attachments/:attachmentId", deleteTaskAttachment);
 
 export default taskRouter;

@@ -1,7 +1,18 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import taskService from "./taskService";
 
+const VIEW_KEY = "taskpulse:taskView";
+const getStoredView = () => {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "board" ? "board" : "list";
+  } catch {
+    return "list";
+  }
+};
+
 const initialState = {
+  viewMode: getStoredView(), // "list" | "board"
   tasks: [],
   currentTask: null,
   statusFilter: "all",
@@ -11,6 +22,7 @@ const initialState = {
   isError: false,
   message: "",
   updatingTasks: {},
+  pendingMoves: {},
 };
 
 export const fetchTasks = createAsyncThunk(
@@ -18,12 +30,14 @@ export const fetchTasks = createAsyncThunk(
   async (_, thunkAPI) => {
     try {
       const state = thunkAPI.getState();
-      const { statusFilter, searchQuery, assignedToMe } = state.tasks; // NEW: assignedToMe
+      const { statusFilter, searchQuery, assignedToMe, viewMode } = state.tasks;
       const { selectedCategory } = state.categories;
       const { currentWorkspace } = state.workspaces;
 
       const params = {};
-      if (statusFilter !== "all") params.status = statusFilter;
+      // The board needs all columns, so the status filter only applies to List.
+      if (viewMode !== "board" && statusFilter !== "all")
+        params.status = statusFilter;
       if (selectedCategory && selectedCategory !== "All")
         params.category = selectedCategory;
       if (searchQuery.trim()) params.search = searchQuery.trim();
@@ -96,6 +110,22 @@ export const toggleTaskStatus = createAsyncThunk(
           error.message ||
           "Failed to update task",
       });
+    }
+  },
+);
+
+// Move a task to another workflow status (Kanban drag/drop or status select).
+export const moveTask = createAsyncThunk(
+  "tasks/move",
+  async ({ taskId, status }, thunkAPI) => {
+    try {
+      return await taskService.updateTaskStatus(taskId, status);
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to move task",
+      );
     }
   },
 );
@@ -202,6 +232,14 @@ export const taskSlice = createSlice({
     setStatusFilter: (state, action) => {
       state.statusFilter = action.payload;
     },
+    setViewMode: (state, action) => {
+      state.viewMode = action.payload === "board" ? "board" : "list";
+      try {
+        localStorage.setItem(VIEW_KEY, state.viewMode);
+      } catch {
+        // storage unavailable: the view just won't be remembered
+      }
+    },
     setSearchQuery: (state, action) => {
       state.searchQuery = action.payload;
     },
@@ -248,7 +286,9 @@ export const taskSlice = createSlice({
         const task = state.tasks.find((t) => t._id === taskId);
         if (task) {
           task._previousCompleted = task.completed;
+          task._previousStatus = task.status;
           task.completed = !task.completed;
+          task.status = task.completed ? "done" : "todo";
           state.updatingTasks[taskId] = true;
         }
       })
@@ -269,9 +309,46 @@ export const taskSlice = createSlice({
         const task = state.tasks.find((t) => t._id === taskId);
         if (task) {
           task.completed = task._previousCompleted;
+          task.status = task._previousStatus;
           delete task._previousCompleted;
+          delete task._previousStatus;
         }
         delete state.updatingTasks[taskId];
+      })
+
+      // Optimistic move with rollback. Previous values are remembered per
+      // request so two quick moves of the same task roll back correctly.
+      .addCase(moveTask.pending, (state, action) => {
+        const { taskId, status } = action.meta.arg;
+        const task = state.tasks.find((t) => t._id === taskId);
+        if (task) {
+          state.pendingMoves[action.meta.requestId] = {
+            taskId,
+            status: task.status,
+            completed: task.completed,
+          };
+          task.status = status;
+          task.completed = status === "done";
+        }
+        state.updatingTasks[taskId] = true;
+      })
+      .addCase(moveTask.fulfilled, (state, action) => {
+        const updated = action.payload.data;
+        delete state.pendingMoves[action.meta.requestId];
+        delete state.updatingTasks[updated._id];
+        const index = state.tasks.findIndex((t) => t._id === updated._id);
+        if (index !== -1) state.tasks[index] = updated;
+      })
+      .addCase(moveTask.rejected, (state, action) => {
+        const prev = state.pendingMoves[action.meta.requestId];
+        delete state.pendingMoves[action.meta.requestId];
+        const { taskId } = action.meta.arg;
+        delete state.updatingTasks[taskId];
+        const task = state.tasks.find((t) => t._id === taskId);
+        if (task && prev) {
+          task.status = prev.status;
+          task.completed = prev.completed;
+        }
       })
 
       .addCase(removeTask.fulfilled, (state, action) => {
@@ -340,6 +417,7 @@ export const taskSlice = createSlice({
 
 export const {
   setStatusFilter,
+  setViewMode,
   setSearchQuery,
   setAssignedToMeFilter,
   clearCurrentTask,

@@ -21,7 +21,7 @@ export const getNotifications = asyncHandler(async (req, res) => {
   }
 
   const notifications = await Notification.find({ recipient: req.user._id })
-    .populate("task", "title dueDate completed")
+    .populate("task", "title dueDate completed status")
     .sort({ createdAt: -1 })
     .limit(30);
 

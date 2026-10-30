@@ -10,7 +10,7 @@ export const initReminderCron = () => {
       const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
       const dueSoonTasks = await Task.find({
-        completed: false,
+        status: { $ne: "done" },
         dueDate: { $gte: now, $lte: next24Hours },
       });
 

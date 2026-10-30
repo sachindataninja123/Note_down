@@ -1,12 +1,16 @@
-import React from "react";
+
 import { useDispatch, useSelector } from "react-redux";
 import {
   setStatusFilter,
   setAssignedToMeFilter,
 } from "../../features/tasks/taskSlice";
 import { setSelectedCategory } from "../../features/categories/categorySlice";
+import { TASK_STATUSES } from "../../features/tasks/taskStatus";
 
-export default function FilterBar({ onOpenCategoryModal }) {
+const STATUS_TABS = [{ value: "all", label: "All" }, ...TASK_STATUSES];
+
+// hideStatus: the Board shows every status as a column, so the tabs are hidden.
+export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
   const dispatch = useDispatch();
   const statusFilter = useSelector((state) => state.tasks.statusFilter);
   const { categories, selectedCategory } = useSelector(
@@ -19,24 +23,26 @@ export default function FilterBar({ onOpenCategoryModal }) {
   return (
     <div className="bg-[#FAFAF8] p-2.5 sm:p-3 rounded-2xl border border-[#ECECE6] mb-5 sm:mb-6 flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between shadow-[0_2px_8px_rgba(20,21,26,0.015)]">
       {/* Status Segmented Control (Full width on mobile, auto on desktop) */}
-      <div className="flex items-center bg-white p-1 rounded-xl border border-[#ECECE6] w-full md:w-auto shadow-xs">
-        {["all", "active", "completed"].map((tab) => {
-          const isActive = statusFilter === tab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => dispatch(setStatusFilter(tab))}
-              className={`flex-1 md:flex-none px-3 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold capitalize transition-all cursor-pointer select-none active:scale-[0.98] ${
-                isActive
-                  ? "bg-indigo-500 text-white shadow-sm shadow-[#432DD7]/25"
-                  : "text-[#63656F] hover:text-[#14151A] hover:bg-[#F7F7F5]"
-              }`}
-            >
-              {tab}
-            </button>
-          );
-        })}
+      {(!hideStatus || currentWorkspace) && (
+      <div className="flex items-center bg-white p-1 rounded-xl border border-[#ECECE6] w-full md:w-auto shadow-xs overflow-x-auto">
+        {!hideStatus &&
+          STATUS_TABS.map((tab) => {
+            const isActive = statusFilter === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => dispatch(setStatusFilter(tab.value))}
+                className={`flex-1 md:flex-none whitespace-nowrap px-3 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer select-none active:scale-[0.98] ${
+                  isActive
+                    ? "bg-indigo-500 text-white shadow-sm shadow-[#432DD7]/25"
+                    : "text-[#63656F] hover:text-[#14151A] hover:bg-[#F7F7F5]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         {currentWorkspace && (
           <button
             type="button"
@@ -51,6 +57,7 @@ export default function FilterBar({ onOpenCategoryModal }) {
           </button>
         )}
       </div>
+      )}
 
       {/* Category Pills (Touch-Friendly Horizontal Scroll) */}
       <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scroll-smooth [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden">

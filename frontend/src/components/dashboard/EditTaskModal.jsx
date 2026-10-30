@@ -162,6 +162,7 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { editTask, assignTask } from "../../features/tasks/taskSlice";
+import { TASK_STATUSES, getTaskStatus } from "../../features/tasks/taskStatus";
 import Modal, { ModalHeader } from "../Modal";
 
 const inputClass =
@@ -179,6 +180,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
     description: "",
     category: "",
     priority: "Medium",
+    status: "todo",
     dueDate: "",
   });
 
@@ -191,6 +193,7 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
         description: task.description || "",
         category: task.category?._id || task.category || "",
         priority: task.priority || "Medium",
+        status: getTaskStatus(task),
         dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "",
       });
       setSelectedAssignees(
@@ -326,14 +329,31 @@ export default function EditTaskModal({ isOpen, task, onClose }) {
           </div>
         </div>
 
-        <div>
-          <label className={labelClass}>Due Date</label>
-          <input
-            type="date"
-            value={formData.dueDate}
-            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-            className={inputClass}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className={inputClass}
+            >
+              {TASK_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClass}>Due Date</label>
+            <input
+              type="date"
+              value={formData.dueDate}
+              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+              className={inputClass}
+            />
+          </div>
         </div>
 
         {/* Assignees — only for workspace tasks */}

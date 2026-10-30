@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 export default function StatsGrid({ stats }) {
   const cards = useMemo(
@@ -6,30 +6,30 @@ export default function StatsGrid({ stats }) {
       {
         label: "Total Tasks",
         value: stats.total,
-        badge: "Workspace",
+        badge: "All",
         valueColor: "text-[#14151A]",
         badgeClass: "bg-[#F2F2EE] text-[#63656F]",
       },
       {
-        label: "Pending",
-        value: stats.pending,
-        badge: "In Progress",
+        label: "To Do",
+        value: stats.todo,
+        badge: "Not started",
+        valueColor: "text-[#63656F]",
+        badgeClass: "bg-[#F2F2EE] text-[#63656F]",
+      },
+      {
+        label: "In Progress",
+        value: stats.inProgress,
+        badge: stats.inReview ? `${stats.inReview} in review` : "Active",
         valueColor: "text-[#B7791F]",
         badgeClass: "bg-[#FFF7E6] text-[#B7791F] border border-[#FDE7B8]",
       },
       {
-        label: "Completed",
+        label: "Done",
+        badge: `${stats.progressPercent}%`,
         value: stats.completed,
-        badge: "Done",
         valueColor: "text-[#178A4C]",
         badgeClass: "bg-[#EFFAF3] text-[#178A4C] border border-[#CDEFDC]",
-      },
-      {
-        label: "Completion",
-        badge: "Velocity",
-        value: `${stats.progressPercent}%`,
-        valueColor: "text-[#432DD7]",
-        badgeClass: "bg-[#F2F0FF] text-[#432DD7] border border-[#E0DAFB]",
         progress: stats.progressPercent,
       },
     ],
@@ -111,7 +111,7 @@ export default function StatsGrid({ stats }) {
               <div className="w-10 sm:w-14 lg:w-16 shrink-0 self-center">
                 <div className="w-full bg-[#F2F2EE] h-1.5 sm:h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-[#432DD7] h-full rounded-full transition-all duration-700 ease-out"
+                    className="bg-[#178A4C] h-full rounded-full transition-all duration-700 ease-out"
                     style={{
                       width: `${Math.min(Math.max(card.progress, 0), 100)}%`,
                     }}
