@@ -1,12 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import AppShell from "../components/layout/AppShell";
 import toast from "react-hot-toast";
 import { changePassword } from "../features/auth/authSlice";
 
 export default function Profile() {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
 
   const [passwordData, setPasswordData] = useState({
@@ -84,30 +83,12 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBFA] text-[#14151A] font-sans antialiased selection:bg-[#432DD7] selection:text-white">
-      {/* Top Breadcrumb Navigation Header */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-[#ECECE6]">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/")}
-              className="p-2 rounded-xl text-[#686A74] hover:text-[#14151A] hover:bg-[#F7F7F5] transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span>Back to Workspace</span>
-            </button>
-          </div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#8B8D98]">Account Settings</span>
-        </div>
-      </header>
-
+    <AppShell title="Settings">
       {/* Main Container */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
+      <div className="max-w-4xl space-y-6 sm:space-y-8">
         
         {/* User Profile Header Card */}
-        <section className="bg-white rounded-3xl border border-[#ECECE6] p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6 text-center sm:text-left">
+        <section className="bg-white rounded-3xl border border-line p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6 text-center sm:text-left">
           <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-[#432DD7] to-[#6654E8] flex items-center justify-center text-white text-2xl sm:text-3xl font-extrabold shadow-lg shadow-[#432DD7]/20 shrink-0">
             {getInitials(user?.name)}
             <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-3 border-white" />
@@ -115,19 +96,19 @@ export default function Profile() {
 
           <div className="space-y-1.5 flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#14151A] truncate">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink-900 truncate">
                 {user?.name || "TaskPulse User"}
               </h1>
-              <span className="inline-flex self-center sm:self-auto items-center px-2 py-0.5 rounded-md bg-[#F2F0FF] text-[#432DD7] text-[10px] font-bold uppercase tracking-wider border border-[#E4E0FB]">
+              <span className="inline-flex self-center sm:self-auto items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-wider border border-brand-100">
                 Active Member
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-[#8B8D98] truncate">{user?.email}</p>
+            <p className="text-xs sm:text-sm text-ink-400 truncate">{user?.email}</p>
             <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-2">
-              <span className="text-[11px] font-medium bg-[#F7F7F5] border border-[#ECECE6] text-[#63656F] px-2.5 py-1 rounded-lg">
+              <span className="text-[11px] font-medium bg-[#F7F7F5] border border-line text-[#63656F] px-2.5 py-1 rounded-lg">
                 Personal Space
               </span>
-              <span className="text-[11px] font-medium bg-[#F7F7F5] border border-[#ECECE6] text-[#63656F] px-2.5 py-1 rounded-lg">
+              <span className="text-[11px] font-medium bg-[#F7F7F5] border border-line text-[#63656F] px-2.5 py-1 rounded-lg">
                 JWT Authenticated
               </span>
             </div>
@@ -135,17 +116,17 @@ export default function Profile() {
         </section>
 
         {/* Change Password Card */}
-        <section className="bg-white rounded-3xl border border-[#ECECE6] p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
-          <div className="border-b border-[#ECECE6] pb-4">
+        <section className="bg-white rounded-3xl border border-line p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">
+          <div className="border-b border-line pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-[#432DD7] flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-brand-600 flex items-center justify-center font-bold">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#14151A]">Security & Password</h2>
-                <p className="text-xs text-[#8B8D98]">Update your password to keep your account safe.</p>
+                <h2 className="text-base sm:text-lg font-bold text-ink-900">Security & Password</h2>
+                <p className="text-xs text-ink-400">Update your password to keep your account safe.</p>
               </div>
             </div>
           </div>
@@ -153,7 +134,7 @@ export default function Profile() {
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
             {/* Current Password */}
             <div>
-              <label className="block text-[11px] font-bold text-[#8B8D98] uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-ink-400 uppercase tracking-wider mb-1.5">
                 Current Password
               </label>
               <div className="relative">
@@ -164,12 +145,12 @@ export default function Profile() {
                   value={passwordData.oldPassword}
                   onChange={handleInputChange}
                   required
-                  className="w-full bg-[#FAFAF8] border border-[#ECECE6] rounded-xl px-3.5 py-2.5 text-[13px] text-[#14151A] outline-none focus:border-[#432DD7] focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition pr-10"
+                  className="w-full bg-[#FAFAF8] border border-line rounded-xl px-3.5 py-2.5 text-[13px] text-ink-900 outline-none focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOldPass(!showOldPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B8D98] hover:text-[#14151A] transition text-xs cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-900 transition text-xs cursor-pointer"
                 >
                   {showOldPass ? "Hide" : "Show"}
                 </button>
@@ -179,7 +160,7 @@ export default function Profile() {
             {/* New Password & Confirm Password Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-[#8B8D98] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-ink-400 uppercase tracking-wider mb-1.5">
                   New Password
                 </label>
                 <div className="relative">
@@ -191,12 +172,12 @@ export default function Profile() {
                     onChange={handleInputChange}
                     required
                     minLength={6}
-                    className="w-full bg-[#FAFAF8] border border-[#ECECE6] rounded-xl px-3.5 py-2.5 text-[13px] text-[#14151A] outline-none focus:border-[#432DD7] focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition pr-10"
+                    className="w-full bg-[#FAFAF8] border border-line rounded-xl px-3.5 py-2.5 text-[13px] text-ink-900 outline-none focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPass(!showNewPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B8D98] hover:text-[#14151A] transition text-xs cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-900 transition text-xs cursor-pointer"
                   >
                     {showNewPass ? "Hide" : "Show"}
                   </button>
@@ -204,7 +185,7 @@ export default function Profile() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-[#8B8D98] uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-bold text-ink-400 uppercase tracking-wider mb-1.5">
                   Confirm New Password
                 </label>
                 <input
@@ -214,7 +195,7 @@ export default function Profile() {
                   value={passwordData.confirmPassword}
                   onChange={handleInputChange}
                   required
-                  className="w-full bg-[#FAFAF8] border border-[#ECECE6] rounded-xl px-3.5 py-2.5 text-[13px] text-[#14151A] outline-none focus:border-[#432DD7] focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition"
+                  className="w-full bg-[#FAFAF8] border border-line rounded-xl px-3.5 py-2.5 text-[13px] text-ink-900 outline-none focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-[#432DD7]/10 transition"
                 />
               </div>
             </div>
@@ -223,14 +204,14 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full sm:w-auto bg-[#432DD7] hover:bg-[#3824C2] active:scale-95 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md shadow-[#432DD7]/20 transition cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md shadow-[#432DD7]/20 transition cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? "Updating Password..." : "Update Password"}
               </button>
             </div>
           </form>
         </section>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
