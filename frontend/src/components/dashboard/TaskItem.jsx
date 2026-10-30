@@ -140,8 +140,8 @@ export default function TaskItem({
     <div
       className={`group bg-white rounded-2xl border transition-all duration-200 overflow-hidden ${
         task.completed
-          ? "border-[#ECECE6] opacity-60"
-          : "border-[#ECECE6] hover:border-[#D8D8D2] hover:shadow-[0_8px_30px_-15px_rgba(20,21,26,0.18)]"
+          ? "border-line opacity-60"
+          : "border-line hover:border-[#D8D8D2] hover:shadow-[0_8px_30px_-15px_rgba(20,21,26,0.18)]"
       }`}
     >
       {/* =====================================================
@@ -187,14 +187,14 @@ export default function TaskItem({
                   className={`text-[13.5px] sm:text-[15px] font-semibold tracking-tight wrap-break-word ${
                     task.completed
                       ? "line-through text-[#B4B5BD]"
-                      : "text-[#14151A]"
+                      : "text-ink-900"
                   }`}
                 >
                   {task.title}
                 </h3>
 
                 {task.description && (
-                  <p className="mt-1 text-[11.5px] sm:text-xs text-[#8B8D98] line-clamp-2 leading-relaxed wrap-break-word ">
+                  <p className="mt-1 text-[11.5px] sm:text-xs text-ink-400 line-clamp-2 leading-relaxed wrap-break-word ">
                     {task.description}
                   </p>
                 )}
@@ -225,7 +225,7 @@ export default function TaskItem({
 
                 <button
                   onClick={onToggleExpand}
-                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-[#95959a] hover:text-[#14151A] hover:bg-[#F2F2EE] rounded-lg transition cursor-pointer"
+                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-[#95959a] hover:text-ink-900 hover:bg-[#F2F2EE] rounded-lg transition cursor-pointer"
                   title="Expand Subtasks & Files"
                   aria-label="Expand Subtasks and Files"
                 >
@@ -248,7 +248,7 @@ export default function TaskItem({
 
                 <button
                   onClick={() => onRequestDelete(task)}
-                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-[#95959a] hover:text-[#E14A2C] hover:bg-[#FFF1EC] rounded-lg transition cursor-pointer"
+                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-[#95959a] hover:text-danger-600 hover:bg-[#FFF1EC] rounded-lg transition cursor-pointer"
                   title="Delete Task"
                   aria-label="Delete Task"
                 >
@@ -299,9 +299,9 @@ export default function TaskItem({
               )}
 
               {task.dueDate && (
-                <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-[#ECECE6]">
+                <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-line">
                   <svg
-                    className="w-3 h-3 text-[#8B8D98] shrink-0"
+                    className="w-3 h-3 text-ink-400 shrink-0"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -321,7 +321,7 @@ export default function TaskItem({
               )}
 
               {totalSubtasks > 0 && (
-                <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-[#ECECE6]">
+                <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-line">
                   <svg
                     className="w-3 h-3 text-[#2F5DFF] shrink-0"
                     fill="none"
@@ -362,13 +362,13 @@ export default function TaskItem({
           EXPANDED CONTENT
       ===================================================== */}
       {isExpanded && (
-        <div className="px-3.5 sm:px-4 md:px-5 pb-4 sm:pb-5 pt-4 border-t border-[#ECECE6] bg-[#FAFAF8] space-y-5">
+        <div className="px-3.5 sm:px-4 md:px-5 pb-4 sm:pb-5 pt-4 border-t border-line bg-[#FAFAF8] space-y-5">
           {/* =================================================
               SUBTASKS
           ================================================= */}
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[10.5px] font-semibold text-[#8B8D98] uppercase tracking-wide">
+              <span className="text-[10px] sm:text-[10.5px] font-semibold text-ink-400 uppercase tracking-wide">
                 Subtasks
               </span>
 
@@ -383,7 +383,7 @@ export default function TaskItem({
               {task.subtasks?.map((subtask) => (
                 <div
                   key={subtask._id}
-                  className="flex items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-[#ECECE6] hover:border-[#D8D8D2] transition"
+                  className="flex items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-line hover:border-[#D8D8D2] transition"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <input
@@ -397,7 +397,7 @@ export default function TaskItem({
                       className={`text-[12px] sm:text-sm wrap-break-word  ${
                         subtask.completed
                           ? "line-through text-[#B4B5BD]"
-                          : "text-[#14151A] font-medium"
+                          : "text-ink-900 font-medium"
                       }`}
                     >
                       {subtask.title}
@@ -406,7 +406,7 @@ export default function TaskItem({
 
                   <button
                     onClick={() => handleDeleteSubtask(subtask._id)}
-                    className="w-7 h-7 flex items-center justify-center shrink-0 text-[#B4B5BD] hover:text-[#E14A2C] hover:bg-[#FFF1EC] rounded-lg transition cursor-pointer"
+                    className="w-7 h-7 flex items-center justify-center shrink-0 text-[#B4B5BD] hover:text-danger-600 hover:bg-[#FFF1EC] rounded-lg transition cursor-pointer"
                     aria-label="Delete subtask"
                   >
                     &times;
@@ -422,12 +422,12 @@ export default function TaskItem({
                   value={subtaskInput}
                   onChange={(e) => setSubtaskInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
-                  className="w-full min-w-0 bg-white border border-[#ECECE6] rounded-xl px-3 py-2.5 text-[11.5px] sm:text-xs text-[#14151A] placeholder-[#B4B5BD] outline-none focus:border-[#2F5DFF] focus:ring-2 focus:ring-[#2F5DFF]/10 transition"
+                  className="w-full min-w-0 bg-white border border-line rounded-xl px-3 py-2.5 text-[11.5px] sm:text-xs text-ink-900 placeholder-[#B4B5BD] outline-none focus:border-[#2F5DFF] focus:ring-2 focus:ring-[#2F5DFF]/10 transition"
                 />
 
                 <button
                   onClick={handleAddSubtask}
-                  className="w-full sm:w-auto bg-[#432DD7] hover:bg-[#3622bd] active:scale-[0.98] text-white text-[11.5px] sm:text-xs px-4 py-2.5 rounded-xl font-semibold transition cursor-pointer shrink-0"
+                  className="w-full sm:w-auto bg-brand-600 hover:bg-[#3622bd] active:scale-[0.98] text-white text-[11.5px] sm:text-xs px-4 py-2.5 rounded-xl font-semibold transition cursor-pointer shrink-0"
                 >
                   Add
                 </button>
@@ -440,7 +440,7 @@ export default function TaskItem({
           ================================================= */}
           <div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] sm:text-[10.5px] font-semibold text-[#8B8D98] uppercase tracking-wide">
+              <span className="text-[10px] sm:text-[10.5px] font-semibold text-ink-400 uppercase tracking-wide">
                 Attachments
               </span>
 
@@ -466,7 +466,7 @@ export default function TaskItem({
               {task.attachments?.map((att) => (
                 <div
                   key={att._id}
-                  className="group relative aspect-square w-full sm:w-20 md:w-22 sm:h-20 md:h-22 rounded-xl overflow-hidden border border-[#ECECE6] bg-[#F8F8F5]"
+                  className="group relative aspect-square w-full sm:w-20 md:w-22 sm:h-20 md:h-22 rounded-xl overflow-hidden border border-line bg-[#F8F8F5]"
                 >
                   <a
                     href={att.url}

@@ -21,10 +21,10 @@ export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
     (state) => state.workspaces.currentWorkspace);
 
   return (
-    <div className="bg-[#FAFAF8] p-2.5 sm:p-3 rounded-2xl border border-[#ECECE6] mb-5 sm:mb-6 flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between shadow-[0_2px_8px_rgba(20,21,26,0.015)]">
+    <div className="bg-[#FAFAF8] p-2.5 sm:p-3 rounded-2xl border border-line mb-5 sm:mb-6 flex flex-col md:flex-row gap-2.5 sm:gap-3 items-stretch md:items-center justify-between shadow-[0_2px_8px_rgba(20,21,26,0.015)]">
       {/* Status Segmented Control (Full width on mobile, auto on desktop) */}
       {(!hideStatus || currentWorkspace) && (
-      <div className="flex items-center bg-white p-1 rounded-xl border border-[#ECECE6] w-full md:w-auto shadow-xs overflow-x-auto">
+      <div className="flex items-center bg-white p-1 rounded-xl border border-line w-full md:w-auto shadow-xs overflow-x-auto">
         {!hideStatus &&
           STATUS_TABS.map((tab) => {
             const isActive = statusFilter === tab.value;
@@ -36,7 +36,7 @@ export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
                 className={`flex-1 md:flex-none whitespace-nowrap px-3 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer select-none active:scale-[0.98] ${
                   isActive
                     ? "bg-indigo-500 text-white shadow-sm shadow-[#432DD7]/25"
-                    : "text-[#63656F] hover:text-[#14151A] hover:bg-[#F7F7F5]"
+                    : "text-[#63656F] hover:text-ink-900 hover:bg-[#F7F7F5]"
                 }`}
               >
                 {tab.label}
@@ -50,7 +50,7 @@ export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
             className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold shrink-0 transition-all cursor-pointer border select-none active:scale-95 ${
               assignedToMe
                 ? "bg-[#2F5DFF] text-white border-[#2F5DFF]"
-                : "bg-white text-[#63656F] border-[#ECECE6] hover:border-[#D8D8D2]"
+                : "bg-white text-[#63656F] border-line hover:border-[#D8D8D2]"
             }`}
           >
             Assigned to me
@@ -68,7 +68,7 @@ export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
           className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold shrink-0 transition-all cursor-pointer border select-none active:scale-95 ${
             selectedCategory === "All"
               ? "bg-[#17181D] text-white border-[#17181D] shadow-xs"
-              : "bg-white text-[#63656F] border-[#ECECE6] hover:border-[#D8D8D2] hover:bg-[#F7F7F5]"
+              : "bg-white text-[#63656F] border-line hover:border-[#D8D8D2] hover:bg-[#F7F7F5]"
           }`}
         >
           All Tags
@@ -102,7 +102,7 @@ export default function FilterBar({ onOpenCategoryModal, hideStatus = false }) {
         <button
           type="button"
           onClick={onOpenCategoryModal}
-          className="p-1.5 sm:p-2 rounded-lg bg-white border border-[#ECECE6] text-[#8B8D98] hover:text-[#432DD7] hover:border-[#432DD7]/40 hover:bg-[#F7F7F5] transition shrink-0 cursor-pointer active:scale-95"
+          className="p-1.5 sm:p-2 rounded-lg bg-white border border-line text-ink-400 hover:text-brand-600 hover:border-brand-600/40 hover:bg-[#F7F7F5] transition shrink-0 cursor-pointer active:scale-95"
           title="Create custom category tag"
           aria-label="Add Category"
         >

@@ -152,7 +152,7 @@ export default function KanbanBoard({ tasks, onEdit }) {
 
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-2 lg:mx-0 lg:px-0">
-      <div className="grid min-w-[880px] grid-cols-4 gap-3 lg:min-w-0">
+      <div className="grid min-w-220 grid-cols-4 gap-3 lg:min-w-0">
         {TASK_STATUSES.map((col) => (
           <section
             key={col.value}
