@@ -5,14 +5,14 @@ const VIEW_KEY = "taskpulse:taskView";
 const getStoredView = () => {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    return v === "board" ? "board" : "list";
+    return v === "board" || v === "calendar" ? v : "list";
   } catch {
     return "list";
   }
 };
 
 const initialState = {
-  viewMode: getStoredView(), // "list" | "board"
+  viewMode: getStoredView(), // "list" | "board" | "calendar"
   tasks: [],
   currentTask: null,
   statusFilter: "all",
@@ -35,8 +35,9 @@ export const fetchTasks = createAsyncThunk(
       const { currentWorkspace } = state.workspaces;
 
       const params = {};
-      // The board needs all columns, so the status filter only applies to List.
-      if (viewMode !== "board" && statusFilter !== "all")
+      // Board and Calendar need every status, so the status filter only
+      // applies to the List view.
+      if (viewMode === "list" && statusFilter !== "all")
         params.status = statusFilter;
       if (selectedCategory && selectedCategory !== "All")
         params.category = selectedCategory;
@@ -233,7 +234,9 @@ export const taskSlice = createSlice({
       state.statusFilter = action.payload;
     },
     setViewMode: (state, action) => {
-      state.viewMode = action.payload === "board" ? "board" : "list";
+      state.viewMode = ["board", "calendar"].includes(action.payload)
+        ? action.payload
+        : "list";
       try {
         localStorage.setItem(VIEW_KEY, state.viewMode);
       } catch {

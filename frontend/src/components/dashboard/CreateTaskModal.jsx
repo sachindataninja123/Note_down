@@ -7,9 +7,14 @@ import Modal, { ModalHeader } from "../Modal";
 
 const inputClass =
   "w-full bg-[#FAFAF8] border border-[#ECECE6] rounded-xl px-3.5 py-2.5 text-[13px] text-[#14151A] outline-none focus:border-[#2F5DFF] focus:bg-white focus:ring-2 focus:ring-[#2F5DFF]/10 transition";
-const labelClass = "block text-[11px] font-semibold text-[#8B8D98] uppercase tracking-wide mb-1.5";
+const labelClass =
+  "block text-[11px] font-semibold text-[#8B8D98] uppercase tracking-wide mb-1.5";
 
-export default function CreateTaskModal({ isOpen, onClose }) {
+export default function CreateTaskModal({
+  isOpen,
+  onClose,
+  initialDueDate = "",
+}) {
   const dispatch = useDispatch();
   const { categories } = useSelector((state) => state.categories);
   const { currentWorkspace } = useSelector((state) => state.workspaces);
@@ -21,14 +26,17 @@ export default function CreateTaskModal({ isOpen, onClose }) {
     category: "",
     priority: "Medium",
     status: "todo",
-    dueDate: "",
+    dueDate: initialDueDate,
   });
 
   const [selectedAssignees, setSelectedAssignees] = useState([]); // NEW
 
-  const toggleAssignee = (userId) => { // NEW
+  const toggleAssignee = (userId) => {
+    // NEW
     setSelectedAssignees((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
     );
   };
 
@@ -47,7 +55,7 @@ export default function CreateTaskModal({ isOpen, onClose }) {
         dueDate: newTask.dueDate || null,
         workspace: currentWorkspace?._id || null,
         assignedTo: currentWorkspace ? selectedAssignees : [], // NEW
-      })
+      }),
     ).unwrap();
 
     toast.promise(taskPromise, {
@@ -58,7 +66,14 @@ export default function CreateTaskModal({ isOpen, onClose }) {
 
     try {
       await taskPromise;
-      setNewTask({ title: "", description: "", category: "", priority: "Medium", status: "todo", dueDate: "" });
+      setNewTask({
+        title: "",
+        description: "",
+        category: "",
+        priority: "Medium",
+        status: "todo",
+        dueDate: "",
+      });
       setSelectedAssignees([]); // NEW
       onClose();
     } catch {
@@ -91,7 +106,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
             rows="3"
             placeholder="Key objectives, guidelines, resources..."
             value={newTask.description}
-            onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+            onChange={(e) =>
+              setNewTask({ ...newTask, description: e.target.value })
+            }
             className={inputClass}
           />
         </div>
@@ -101,7 +118,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
             <label className={labelClass}>Category</label>
             <select
               value={newTask.category}
-              onChange={(e) => setNewTask({ ...newTask, category: e.target.value })}
+              onChange={(e) =>
+                setNewTask({ ...newTask, category: e.target.value })
+              }
               className={inputClass}
             >
               <option value="">No Category</option>
@@ -117,7 +136,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
             <label className={labelClass}>Priority</label>
             <select
               value={newTask.priority}
-              onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+              onChange={(e) =>
+                setNewTask({ ...newTask, priority: e.target.value })
+              }
               className={inputClass}
             >
               <option value="Low">Low</option>
@@ -132,7 +153,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
             <label className={labelClass}>Status</label>
             <select
               value={newTask.status}
-              onChange={(e) => setNewTask({ ...newTask, status: e.target.value })}
+              onChange={(e) =>
+                setNewTask({ ...newTask, status: e.target.value })
+              }
               className={inputClass}
             >
               {TASK_STATUSES.map((s) => (
@@ -148,7 +171,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
             <input
               type="date"
               value={newTask.dueDate}
-              onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+              onChange={(e) =>
+                setNewTask({ ...newTask, dueDate: e.target.value })
+              }
               className={inputClass}
             />
           </div>
@@ -176,7 +201,9 @@ export default function CreateTaskModal({ isOpen, onClose }) {
                   >
                     <span
                       className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 ${
-                        isSelected ? "bg-white/20 text-white" : "bg-line text-[#63656F]"
+                        isSelected
+                          ? "bg-white/20 text-white"
+                          : "bg-line text-[#63656F]"
                       }`}
                     >
                       {memberName[0]?.toUpperCase()}

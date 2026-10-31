@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { fetchTasks, removeTask, setViewMode } from "../features/tasks/taskSlice";
@@ -13,6 +13,8 @@ import PulseMark from "../components/PulseMark";
 import StatsGrid from "../components/dashboard/StatsGrid";
 import FilterBar from "../components/dashboard/FilterBar";
 import KanbanBoard from "../components/dashboard/KanbanBoard";
+import CalendarView from "../components/dashboard/CalenderView";
+import TaskDrawer from "../components/dashboard/TaskDrawer";
 import ViewSwitcher from "../components/dashboard/ViewSwitcher";
 import TaskItem from "../components/dashboard/TaskItem";
 import CreateTaskModal from "../components/dashboard/CreateTaskModal";
@@ -33,7 +35,18 @@ export default function Dashboard() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [deleteTaskTarget, setDeleteTaskTarget] = useState(null);
-  const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [openTaskId, setOpenTaskId] = useState(null);
+  // `n` changes only when a date is chosen, so CreateTaskModal remounts and
+  // starts with that due date; a plain "New Task" keeps any unsaved draft.
+  const [createSeed, setCreateSeed] = useState({ date: "", n: 0 });
+
+  const openCreate = (date) => {
+    if (typeof date === "string") {
+      setCreateSeed((prev) => ({ date, n: prev.n + 1 }));
+    }
+    setIsTaskModalOpen(true);
+  };
+  const closeDrawer = useCallback(() => setOpenTaskId(null), []);
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -90,6 +103,7 @@ export default function Dashboard() {
 
     try {
       await deletePromise;
+      if (openTaskId === deleteTaskTarget._id) setOpenTaskId(null);
       setDeleteTaskTarget(null);
     } catch {
       // Handled by toast.promise
@@ -100,15 +114,15 @@ export default function Dashboard() {
     <AppShell
       title="Overview"
       showSearch
-      onCreateTask={() => setIsTaskModalOpen(true)}
+      onCreateTask={() => openCreate()}
     >
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[24px] font-semibold text-ink-700 capitalize">
+          <h2 className="text-xl font-bold text-ink-900">
             {greeting}
             {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
           </h2>
-          <p className="text-[14px] font-normal tracking-normal text-ink-600">
+          <p className="text-sm text-ink-400">
             {today} · {currentWorkspace ? currentWorkspace.name : "Personal tasks"}
           </p>
         </div>
@@ -121,7 +135,7 @@ export default function Dashboard() {
         <StatsGrid stats={stats} />
         <FilterBar
           onOpenCategoryModal={() => setIsCategoryModalOpen(true)}
-          hideStatus={viewMode === "board"}
+          hideStatus={viewMode !== "list"}
         />
 
         {isLoading && tasks.length === 0 ? (
@@ -131,8 +145,14 @@ export default function Dashboard() {
               Loading your tasks…
             </p>
           </div>
+        ) : viewMode === "calendar" ? (
+          <CalendarView
+            tasks={tasks}
+            onOpenTask={setOpenTaskId}
+            onCreateOnDate={openCreate}
+          />
         ) : viewMode === "board" ? (
-          <KanbanBoard tasks={tasks} onEdit={(t) => setEditingTask(t)} />
+          <KanbanBoard tasks={tasks} onOpenTask={(t) => setOpenTaskId(t._id)} />
         ) : tasks.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -150,21 +170,26 @@ export default function Dashboard() {
               <TaskItem
                 key={task._id}
                 task={task}
-                isExpanded={expandedTaskId === task._id}
-                onToggleExpand={() =>
-                  setExpandedTaskId(
-                    expandedTaskId === task._id ? null : task._id,
-                  )
-                }
+                onOpen={(t) => setOpenTaskId(t._id)}
                 onEdit={(t) => setEditingTask(t)}
                 onRequestDelete={(t) => setDeleteTaskTarget(t)}
               />
             ))}
           </div>
         )}
+      {openTaskId && (
+        <TaskDrawer
+          taskId={openTaskId}
+          onClose={closeDrawer}
+          onEdit={(t) => setEditingTask(t)}
+          onRequestDelete={(t) => setDeleteTaskTarget(t)}
+        />
+      )}
       <CreateTaskModal
+        key={createSeed.n}
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
+        initialDueDate={createSeed.date}
       />
       <EditTaskModal
         isOpen={Boolean(editingTask)}

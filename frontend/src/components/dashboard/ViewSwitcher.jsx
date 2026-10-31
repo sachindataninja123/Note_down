@@ -1,8 +1,9 @@
-import { LayoutList, Columns3 } from "lucide-react";
+import { LayoutList, Columns3, CalendarDays } from "lucide-react";
 
 const VIEWS = [
   { value: "list", label: "List", icon: LayoutList },
   { value: "board", label: "Board", icon: Columns3 },
+  { value: "calendar", label: "Calendar", icon: CalendarDays },
 ];
 
 export default function ViewSwitcher({ value, onChange }) {

@@ -3,12 +3,10 @@ import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { CalendarDays, CheckSquare } from "lucide-react";
 import { moveTask } from "../../features/tasks/taskSlice";
-import {
-  TASK_STATUSES,
-  getTaskStatus,
-} from "../../features/tasks/taskStatus";
+import { TASK_STATUSES, getTaskStatus } from "../../features/tasks/taskStatus";
 import Badge from "../ui/Badge";
 import StatusSelect from "./StatusSelect";
+import { formatDue, isOverdue } from "../../utils/dates";
 
 const PRIORITY_TONE = { High: "danger", Medium: "warning", Low: "success" };
 
@@ -20,14 +18,21 @@ const COLUMN_ACCENT = {
 };
 
 const initials = (name = "") =>
-  name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+  name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
 
 function TaskCard({ task, status, isSaving, onOpen, onMove, onDragStart }) {
   const subtasks = task.subtasks || [];
   const doneSubtasks = subtasks.filter((s) => s.completed).length;
-  const assignees = (task.assignedTo || []).filter((a) => typeof a === "object");
-  const overdue =
-    task.dueDate && status !== "done" && new Date(task.dueDate) < new Date();
+  const assignees = (task.assignedTo || []).filter(
+    (a) => typeof a === "object",
+  );
+  const overdue = isOverdue(task, status === "done");
 
   return (
     <article
@@ -46,7 +51,9 @@ function TaskCard({ task, status, isSaving, onOpen, onMove, onDragStart }) {
       </button>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Badge tone={PRIORITY_TONE[task.priority] || "warning"}>{task.priority}</Badge>
+        <Badge tone={PRIORITY_TONE[task.priority] || "warning"}>
+          {task.priority}
+        </Badge>
         {task.category && (
           <span
             style={{
@@ -71,10 +78,7 @@ function TaskCard({ task, status, isSaving, onOpen, onMove, onDragStart }) {
               title={overdue ? "Overdue" : "Due date"}
             >
               <CalendarDays size={12} aria-hidden="true" />
-              {new Date(task.dueDate).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })}
+              {formatDue(task, { month: "short", day: "numeric" })}
             </span>
           )}
           {subtasks.length > 0 && (
@@ -117,7 +121,7 @@ function TaskCard({ task, status, isSaving, onOpen, onMove, onDragStart }) {
   );
 }
 
-export default function KanbanBoard({ tasks, onEdit }) {
+export default function KanbanBoard({ tasks, onOpenTask }) {
   const dispatch = useDispatch();
   const updatingTasks = useSelector((s) => s.tasks.updatingTasks);
   const [dragOver, setDragOver] = useState(null);
@@ -174,7 +178,9 @@ export default function KanbanBoard({ tasks, onEdit }) {
           >
             <header className="mb-2.5 flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${COLUMN_ACCENT[col.value]}`} />
+                <span
+                  className={`h-2 w-2 rounded-full ${COLUMN_ACCENT[col.value]}`}
+                />
                 <h3 className="text-xs font-bold text-ink-900">{col.label}</h3>
               </div>
               <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold text-ink-400 border border-line">
@@ -189,7 +195,7 @@ export default function KanbanBoard({ tasks, onEdit }) {
                   task={task}
                   status={col.value}
                   isSaving={Boolean(updatingTasks[task._id])}
-                  onOpen={onEdit}
+                  onOpen={onOpenTask}
                   onMove={handleMove}
                   onDragStart={handleDragStart}
                 />

@@ -1,28 +1,12 @@
-import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import toast from "react-hot-toast";
-import {
-  toggleTaskStatus,
-  createSubtask,
-  toggleSubtaskStatus,
-  removeSubtask,
-  uploadAttachment,
-  removeAttachment,
-} from "../../features/tasks/taskSlice";
-import TaskComments from "./TaskComments";
+import { toggleTaskStatus } from "../../features/tasks/taskSlice";
 import Badge from "../ui/Badge";
+import { formatDue, isOverdue } from "../../utils/dates";
 import { getStatusMeta, getTaskStatus } from "../../features/tasks/taskStatus";
 
-export default function TaskItem({
-  task,
-  isExpanded,
-  onToggleExpand,
-  onEdit,
-  onRequestDelete,
-}) {
+export default function TaskItem({ task, onOpen, onEdit, onRequestDelete }) {
   const dispatch = useDispatch();
-  const [subtaskInput, setSubtaskInput] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
 
   const priorityStyles = {
     High: "bg-[#FFF1EC] text-[#E14A2C] border-[#FFD9CB]",
@@ -45,95 +29,6 @@ export default function TaskItem({
     } catch {
       toast.error("Failed to update status");
     }
-  };
-
-  const handleAddSubtask = async () => {
-    if (!subtaskInput.trim()) {
-      toast.error("Subtask item cannot be empty");
-      return;
-    }
-
-    try {
-      await dispatch(
-        createSubtask({
-          taskId: task._id,
-          title: subtaskInput.trim(),
-        }),
-      ).unwrap();
-
-      toast.success("Subtask added");
-      setSubtaskInput("");
-    } catch {
-      toast.error("Failed to add subtask");
-    }
-  };
-
-  const handleToggleSubtask = async (subtaskId) => {
-    try {
-      await dispatch(
-        toggleSubtaskStatus({
-          taskId: task._id,
-          subtaskId,
-        }),
-      ).unwrap();
-    } catch {
-      toast.error("Failed to update subtask");
-    }
-  };
-
-  const handleDeleteSubtask = async (subtaskId) => {
-    try {
-      await dispatch(
-        removeSubtask({
-          taskId: task._id,
-          subtaskId,
-        }),
-      ).unwrap();
-
-      toast.success("Subtask removed");
-    } catch {
-      toast.error("Failed to delete subtask");
-    }
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-
-    if (!file) return;
-
-    setIsUploading(true);
-
-    const uploadPromise = dispatch(
-      uploadAttachment({
-        taskId: task._id,
-        file,
-      }),
-    ).unwrap();
-
-    toast.promise(uploadPromise, {
-      loading: `Uploading ${file.name}...`,
-      success: "Attachment uploaded successfully!",
-      error: "Failed to upload file",
-    });
-
-    uploadPromise.finally(() => setIsUploading(false));
-
-    e.target.value = "";
-  };
-
-  const handleDeleteAttachment = async (attachmentId) => {
-    const deletePromise = dispatch(
-      removeAttachment({
-        taskId: task._id,
-        attachmentId,
-      }),
-    ).unwrap();
-
-    toast.promise(deletePromise, {
-      loading: "Removing attachment...",
-      success: "Attachment removed",
-      error: "Failed to remove attachment",
-    });
   };
 
   return (
@@ -184,7 +79,8 @@ export default function TaskItem({
             <div className="flex items-start justify-between gap-2 sm:gap-4">
               <div className="min-w-0 flex-1">
                 <h3
-                  className={`text-[13.5px] sm:text-[15px] font-semibold tracking-tight wrap-break-word ${
+                  onClick={() => onOpen(task)}
+                  className={`cursor-pointer hover:text-brand-600 text-[13.5px] sm:text-[15px] font-semibold tracking-tight wrap-break-word ${
                     task.completed
                       ? "line-through text-[#B4B5BD]"
                       : "text-ink-900"
@@ -224,15 +120,13 @@ export default function TaskItem({
                 </button>
 
                 <button
-                  onClick={onToggleExpand}
+                  onClick={() => onOpen(task)}
                   className="w-8 h-8 sm:w-8.5 sm:h-8.5 flex items-center justify-center text-[#95959a] hover:text-ink-900 hover:bg-[#F2F2EE] rounded-lg transition cursor-pointer"
-                  title="Expand Subtasks & Files"
-                  aria-label="Expand Subtasks and Files"
+                  title="Open details"
+                  aria-label="Open task details"
                 >
                   <svg
-                    className={`w-4 h-4 transition-transform duration-200 ${
-                      isExpanded ? "rotate-180" : ""
-                    }`}
+                    className="w-4 h-4"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -241,7 +135,7 @@ export default function TaskItem({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth="2"
-                      d="M19 9l-7 7-7-7"
+                      d="M9 5l7 7-7 7"
                     />
                   </svg>
                 </button>
@@ -299,7 +193,16 @@ export default function TaskItem({
               )}
 
               {task.dueDate && (
-                <span className="text-[9.5px] sm:text-[10.5px] text-[#63656F] flex items-center gap-1 font-medium bg-[#F7F7F5] px-2 py-1 rounded-md border border-line">
+                <span
+                  className={`text-[9.5px] sm:text-[10.5px] flex items-center gap-1 font-medium px-2 py-1 rounded-md border ${
+                    isOverdue(task, task.completed)
+                      ? "text-danger-600 bg-danger-50 border-[#FFD9CB]"
+                      : "text-[#63656F] bg-[#F7F7F5] border-line"
+                  }`}
+                  title={
+                    isOverdue(task, task.completed) ? "Overdue" : "Due date"
+                  }
+                >
                   <svg
                     className="w-3 h-3 text-ink-400 shrink-0"
                     fill="none"
@@ -314,9 +217,7 @@ export default function TaskItem({
                     />
                   </svg>
 
-                  <span className="whitespace-nowrap">
-                    {new Date(task.dueDate).toLocaleDateString()}
-                  </span>
+                  <span className="whitespace-nowrap">{formatDue(task)}</span>
                 </span>
               )}
 
@@ -357,151 +258,6 @@ export default function TaskItem({
           </div>
         </div>
       </div>
-
-      {/* =====================================================
-          EXPANDED CONTENT
-      ===================================================== */}
-      {isExpanded && (
-        <div className="px-3.5 sm:px-4 md:px-5 pb-4 sm:pb-5 pt-4 border-t border-line bg-[#FAFAF8] space-y-5">
-          {/* =================================================
-              SUBTASKS
-          ================================================= */}
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[10.5px] font-semibold text-ink-400 uppercase tracking-wide">
-                Subtasks
-              </span>
-
-              {totalSubtasks > 0 && (
-                <span className="text-[10px] font-medium text-[#B4B5BD]">
-                  {completedSubtasks}/{totalSubtasks} completed
-                </span>
-              )}
-            </div>
-
-            <div className="mt-2.5 space-y-1.5">
-              {task.subtasks?.map((subtask) => (
-                <div
-                  key={subtask._id}
-                  className="flex items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-line hover:border-[#D8D8D2] transition"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={subtask.completed}
-                      onChange={() => handleToggleSubtask(subtask._id)}
-                      className="w-3.5 h-3.5 accent-[#2F5DFF] rounded cursor-pointer shrink-0"
-                    />
-
-                    <span
-                      className={`text-[12px] sm:text-sm wrap-break-word  ${
-                        subtask.completed
-                          ? "line-through text-[#B4B5BD]"
-                          : "text-ink-900 font-medium"
-                      }`}
-                    >
-                      {subtask.title}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => handleDeleteSubtask(subtask._id)}
-                    className="w-7 h-7 flex items-center justify-center shrink-0 text-[#B4B5BD] hover:text-danger-600 hover:bg-[#FFF1EC] rounded-lg transition cursor-pointer"
-                    aria-label="Delete subtask"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
-
-              {/* Add Subtask */}
-              <div className="flex flex-col xs:flex-row sm:flex-row gap-2 mt-2.5">
-                <input
-                  type="text"
-                  placeholder="Add item..."
-                  value={subtaskInput}
-                  onChange={(e) => setSubtaskInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
-                  className="w-full min-w-0 bg-white border border-line rounded-xl px-3 py-2.5 text-[11.5px] sm:text-xs text-ink-900 placeholder-[#B4B5BD] outline-none focus:border-[#2F5DFF] focus:ring-2 focus:ring-[#2F5DFF]/10 transition"
-                />
-
-                <button
-                  onClick={handleAddSubtask}
-                  className="w-full sm:w-auto bg-brand-600 hover:bg-[#3622bd] active:scale-[0.98] text-white text-[11.5px] sm:text-xs px-4 py-2.5 rounded-xl font-semibold transition cursor-pointer shrink-0"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* =================================================
-              ATTACHMENTS
-          ================================================= */}
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] sm:text-[10.5px] font-semibold text-ink-400 uppercase tracking-wide">
-                Attachments
-              </span>
-
-              <label
-                className={`text-[11px] sm:text-xs font-semibold text-[#2F5DFF] hover:text-[#1E46E0] cursor-pointer whitespace-nowrap ${
-                  isUploading ? "opacity-50 pointer-events-none" : ""
-                }`}
-              >
-                {isUploading ? "Uploading…" : "+ Upload Image"}
-
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                />
-              </label>
-            </div>
-
-            {/* Image Grid */}
-            <div className="mt-2.5 grid grid-cols-3 xs:grid-cols-4 sm:flex sm:flex-wrap gap-2.5">
-              {task.attachments?.map((att) => (
-                <div
-                  key={att._id}
-                  className="group relative aspect-square w-full sm:w-20 md:w-22 sm:h-20 md:h-22 rounded-xl overflow-hidden border border-line bg-[#F8F8F5]"
-                >
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block w-full h-full"
-                  >
-                    <img
-                      src={att.url}
-                      alt={att.fileName}
-                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                    />
-                  </a>
-
-                  <button
-                    onClick={() => handleDeleteAttachment(att._id)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Delete image"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
-
-              {(!task.attachments || task.attachments.length === 0) && (
-                <p className="col-span-full text-[11px] text-[#B4B5BD] py-1">
-                  No images attached yet.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <TaskComments taskId={task._id} />
-        </div>
-      )}
     </div>
   );
 }
