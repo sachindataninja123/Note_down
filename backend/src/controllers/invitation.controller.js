@@ -9,6 +9,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { sendWorkspaceInviteEmail } from "../utils/sendOtpEmail.js";
 import { invalidateWorkspaceCacheForUsers } from "../utils/workspaceCache.js";
+import { logActivity, maskEmail } from "../utils/activity.js";
 
 const INVITE_EXPIRY_DAYS = 7;
 const CLIENT_URL =
@@ -91,6 +92,17 @@ export const inviteMember = asyncHandler(async (req, res) => {
       `Failed to deliver invitation email: ${emailError.message || "email send error"}`,
     );
   }
+
+  await logActivity({
+    workspace: workspace._id,
+    actor: req.user._id,
+    action: "member.invited",
+    details: {
+      invitee: maskEmail(normalizedEmail),
+      role: invitation.role,
+      workspaceName: workspace.name,
+    },
+  });
 
   return res.status(201).json(
     new ApiResponse(
@@ -185,6 +197,12 @@ export const acceptInvite = asyncHandler(async (req, res) => {
   if (!alreadyMember) {
     workspace.members.push({ user: req.user._id, role: invitation.role });
     await workspace.save();
+    await logActivity({
+      workspace: workspace._id,
+      actor: req.user._id,
+      action: "member.joined",
+      details: { role: invitation.role, workspaceName: workspace.name },
+    });
   }
 
   await invalidateWorkspaceCacheForUsers([

@@ -15,6 +15,7 @@ import { Toaster } from "react-hot-toast";
 import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import InviteAccept from "./pages/InviteAccept";
+import Activity from "./pages/Activity";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -69,6 +70,15 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute>
+              <Activity />
             </ProtectedRoute>
           }
         />

@@ -7,6 +7,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { getAccessibleTask } from "../utils/taskAccess.js";
 import { scopeFromTask, invalidateTaskCache } from "../utils/taskCache.js";
+import { logTaskActivity } from "../utils/activity.js";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -14,14 +15,13 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// CHANGED: images only — no PDFs, no docs.
 const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/gif",
 ]);
-// CHANGED: 5MB instead of 10MB.
+
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export const uploadTaskAttachment = asyncHandler(async (req, res) => {
@@ -34,7 +34,10 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
   if (!task) throw new ApiError(404, "Task not found");
 
   if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
-    throw new ApiError(400, "Only image files are allowed (PNG, JPG, WEBP, GIF)");
+    throw new ApiError(
+      400,
+      "Only image files are allowed (PNG, JPG, WEBP, GIF)",
+    );
   }
   if (req.file.size > MAX_FILE_SIZE_BYTES) {
     throw new ApiError(400, "Image exceeds the 5MB limit");
@@ -46,7 +49,7 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
-      }
+      },
     );
     streamifier.createReadStream(req.file.buffer).pipe(stream);
   });
@@ -61,6 +64,12 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
 
   await task.save();
   await invalidateTaskCache(scopeFromTask(task));
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "attachment.uploaded",
+    details: { fileName: req.file.originalname },
+  });
 
   return res
     .status(201)
@@ -70,7 +79,10 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
 export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   const { id, attachmentId } = req.params;
 
-  if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(attachmentId)) {
+  if (
+    !mongoose.isValidObjectId(id) ||
+    !mongoose.isValidObjectId(attachmentId)
+  ) {
     throw new ApiError(400, "Invalid ID format");
   }
 
@@ -80,15 +92,26 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   const attachment = task.attachments.id(attachmentId);
   if (!attachment) throw new ApiError(404, "Attachment not found");
 
+  const removedFileName = attachment.fileName;
   await cloudinary.uploader.destroy(attachment.publicId);
 
   task.attachments.pull({ _id: attachmentId });
   await task.save();
   await invalidateTaskCache(scopeFromTask(task));
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "attachment.deleted",
+    details: { fileName: removedFileName },
+  });
 
   return res
     .status(200)
     .json(
-      new ApiResponse(200, { taskId: id, attachmentId }, "Attachment deleted successfully")
+      new ApiResponse(
+        200,
+        { taskId: id, attachmentId },
+        "Attachment deleted successfully",
+      ),
     );
 });

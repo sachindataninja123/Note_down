@@ -1,12 +1,13 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { LayoutDashboard, Settings, Plus, User, X } from "lucide-react";
+import { LayoutDashboard, History, Settings, Plus, User, X } from "lucide-react";
 import { setCurrentWorkspace } from "../../features/workspaces/workspaceSlice";
 
 // Only pages that really exist belong here. Add My Tasks / Calendar /
 // Analytics / Activity entries in the phase that builds each page.
 const NAV_ITEMS = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/activity", label: "Activity", icon: History },
   { to: "/profile", label: "Settings", icon: Settings },
 ];
 
@@ -20,6 +21,10 @@ const linkClass = ({ isActive }) =>
 export default function Sidebar({ onManageWorkspaces, onNavigate, onClose }) {
   const dispatch = useDispatch();
   const { workspaces, currentWorkspace } = useSelector((s) => s.workspaces);
+  const { pathname } = useLocation();
+  // Workspace-scoped pages stay put when you switch workspace; anything else
+  // (e.g. Settings) goes to the Overview of the workspace you picked.
+  const scopedTarget = pathname === "/activity" ? "/activity" : "/";
 
   const select = (workspace) => {
     dispatch(setCurrentWorkspace(workspace));
@@ -76,7 +81,7 @@ export default function Sidebar({ onManageWorkspaces, onNavigate, onClose }) {
           </p>
           <div className="space-y-0.5">
             <NavLink
-              to="/"
+              to={scopedTarget}
               onClick={() => select(null)}
               className={() => itemClass(!currentWorkspace)}
             >
@@ -87,7 +92,7 @@ export default function Sidebar({ onManageWorkspaces, onNavigate, onClose }) {
             {workspaces.map((w) => (
               <NavLink
                 key={w._id}
-                to="/"
+                to={scopedTarget}
                 onClick={() => select(w)}
                 className={() => itemClass(currentWorkspace?._id === w._id)}
               >

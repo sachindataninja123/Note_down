@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import {
@@ -26,6 +26,9 @@ import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import StatusSelect from "./StatusSelect";
 import TaskComments from "./TaskComments";
+import ActivityTimeline from "./ActivityTimeline";
+import useActivityFeed from "../../hooks/useActivityFeed";
+import activityService from "../../features/activity/activityService";
 
 const PRIORITY_TONE = { High: "danger", Medium: "warning", Low: "success" };
 
@@ -58,18 +61,28 @@ function MetaRow({ icon: Icon, label, children }) {
 /**
  * Right-side task details (full screen on phones). Reads the task from Redux
  * by id, so edits, status moves and subtask toggles show up immediately.
- * Activity history is added in Phase 4 once the Activity model exists.
  */
-export default function TaskDrawer({
-  taskId,
-  onClose,
-  onEdit,
-  onRequestDelete,
-}) {
+export default function TaskDrawer({ taskId, onClose, onEdit, onRequestDelete }) {
   const dispatch = useDispatch();
   const task = useSelector((s) => s.tasks.tasks.find((t) => t._id === taskId));
   const isSaving = useSelector((s) => Boolean(s.tasks.updatingTasks[taskId]));
+  const commentCount = useSelector(
+    (s) => s.comments.commentsByTask[taskId]?.length ?? 0,
+  );
   const panelRef = useRef(null);
+
+  // Reload the history (in place) whenever the task is saved or a comment is
+  // added; both change this key.
+  const activityFetch = useCallback(
+    (cursor) => activityService.getTaskFeed(taskId, { before: cursor, limit: 10 }),
+    [taskId],
+  );
+  const activityFeed = useActivityFeed({
+    scope: taskId,
+    refreshKey: `${task?.updatedAt || ""}|${commentCount}`,
+    fetchPage: activityFetch,
+  });
+
   const [subtaskInput, setSubtaskInput] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
@@ -99,9 +112,7 @@ export default function TaskDrawer({
   const progress = subtasks.length
     ? Math.round((doneSubtasks / subtasks.length) * 100)
     : 0;
-  const assignees = (task.assignedTo || []).filter(
-    (a) => typeof a === "object",
-  );
+  const assignees = (task.assignedTo || []).filter((a) => typeof a === "object");
 
   const handleStatus = async (next) => {
     if (next === status) return;
@@ -157,9 +168,7 @@ export default function TaskDrawer({
   };
 
   const handleDeleteAttachment = (attachmentId) => {
-    const promise = dispatch(
-      removeAttachment({ taskId, attachmentId }),
-    ).unwrap();
+    const promise = dispatch(removeAttachment({ taskId, attachmentId })).unwrap();
     toast.promise(promise, {
       loading: "Removing attachment...",
       success: "Attachment removed",
@@ -168,12 +177,7 @@ export default function TaskDrawer({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Task details"
-    >
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Task details">
       <div className="absolute inset-0 bg-ink-900/40" onClick={onClose} />
 
       <aside
@@ -182,25 +186,12 @@ export default function TaskDrawer({
         className="absolute inset-y-0 right-0 flex w-full flex-col bg-surface shadow-pop outline-none sm:w-lg"
       >
         <header className="flex items-center justify-between gap-2 border-b border-line px-5 py-3">
-          <Badge tone={done ? "success" : "neutral"}>
-            {done ? "Completed" : "Open"}
-          </Badge>
+          <Badge tone={done ? "success" : "neutral"}>{done ? "Completed" : "Open"}</Badge>
           <div className="flex items-center gap-1.5">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Pencil}
-              onClick={() => onEdit(task)}
-            >
+            <Button variant="secondary" size="sm" icon={Pencil} onClick={() => onEdit(task)}>
               Edit
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={Trash2}
-              onClick={() => onRequestDelete(task)}
-              aria-label="Delete task"
-            >
+            <Button variant="ghost" size="sm" icon={Trash2} onClick={() => onRequestDelete(task)} aria-label="Delete task">
               <span className="sr-only">Delete</span>
             </Button>
             <button
@@ -216,9 +207,7 @@ export default function TaskDrawer({
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-5 py-4">
-            <h2
-              className={`text-lg font-bold wrap-break-word ${done ? "text-ink-400 line-through" : "text-ink-900"}`}
-            >
+            <h2 className={`text-lg font-bold wrap-break-word ${done ? "text-ink-400 line-through" : "text-ink-900"}`}>
               {task.title}
             </h2>
             {task.description ? (
@@ -231,16 +220,10 @@ export default function TaskDrawer({
 
             <div className="mt-4">
               <MetaRow icon={Layers} label="Status">
-                <StatusSelect
-                  value={status}
-                  disabled={isSaving}
-                  onChange={handleStatus}
-                />
+                <StatusSelect value={status} disabled={isSaving} onChange={handleStatus} />
               </MetaRow>
               <MetaRow icon={Flag} label="Priority">
-                <Badge tone={PRIORITY_TONE[task.priority] || "warning"}>
-                  {task.priority}
-                </Badge>
+                <Badge tone={PRIORITY_TONE[task.priority] || "warning"}>{task.priority}</Badge>
               </MetaRow>
               <MetaRow icon={Tag} label="Category">
                 {task.category ? (
@@ -261,18 +244,9 @@ export default function TaskDrawer({
               <MetaRow icon={CalendarDays} label="Due date">
                 {task.dueDate ? (
                   <span className="flex flex-wrap items-center gap-2">
-                    {formatDue(task, {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                    {isOverdue(task, done) && (
-                      <Badge tone="danger">Overdue</Badge>
-                    )}
-                    {isDueToday(task, done) && (
-                      <Badge tone="warning">Due today</Badge>
-                    )}
+                    {formatDue(task, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                    {isOverdue(task, done) && <Badge tone="danger">Overdue</Badge>}
+                    {isDueToday(task, done) && <Badge tone="warning">Due today</Badge>}
                   </span>
                 ) : (
                   <span className="text-ink-400">No due date</span>
@@ -282,18 +256,13 @@ export default function TaskDrawer({
                 {assignees.length ? (
                   <span className="flex flex-wrap gap-1.5">
                     {assignees.map((a) => (
-                      <span
-                        key={a._id}
-                        className="rounded-full border border-brand-100 bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-600"
-                      >
+                      <span key={a._id} className="rounded-full border border-brand-100 bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-600">
                         {a.name}
                       </span>
                     ))}
                   </span>
                 ) : (
-                  <span className="text-ink-400">
-                    {task.workspace ? "Unassigned" : "Personal task"}
-                  </span>
+                  <span className="text-ink-400">{task.workspace ? "Unassigned" : "Personal task"}</span>
                 )}
               </MetaRow>
             </div>
@@ -301,13 +270,7 @@ export default function TaskDrawer({
 
           <Section
             title="Subtasks"
-            aside={
-              subtasks.length > 0 && (
-                <span className="text-[11px] font-medium text-ink-400">
-                  {doneSubtasks}/{subtasks.length} done
-                </span>
-              )
-            }
+            aside={subtasks.length > 0 && <span className="text-[11px] font-medium text-ink-400">{doneSubtasks}/{subtasks.length} done</span>}
           >
             {subtasks.length > 0 && (
               <div
@@ -318,18 +281,12 @@ export default function TaskDrawer({
                 aria-valuemax={100}
                 aria-label="Subtask progress"
               >
-                <div
-                  className="h-full rounded-full bg-success-600 transition-all"
-                  style={{ width: `${progress}%` }}
-                />
+                <div className="h-full rounded-full bg-success-600 transition-all" style={{ width: `${progress}%` }} />
               </div>
             )}
             <ul className="space-y-1.5">
               {subtasks.map((st) => (
-                <li
-                  key={st._id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2"
-                >
+                <li key={st._id} className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2">
                   <label className="flex min-w-0 cursor-pointer items-center gap-2.5">
                     <input
                       type="checkbox"
@@ -337,9 +294,7 @@ export default function TaskDrawer({
                       onChange={() => handleToggleSubtask(st._id)}
                       className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
                     />
-                    <span
-                      className={`text-[13px] wrap-break-word ${st.completed ? "text-ink-400 line-through" : "text-ink-900"}`}
-                    >
+                    <span className={`text-[13px] wrap-break-word ${st.completed ? "text-ink-400 line-through" : "text-ink-900"}`}>
                       {st.title}
                     </span>
                   </label>
@@ -364,49 +319,26 @@ export default function TaskDrawer({
                 onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
                 className="h-9 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[13px] outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/10"
               />
-              <Button size="sm" onClick={handleAddSubtask}>
-                Add
-              </Button>
+              <Button size="sm" onClick={handleAddSubtask}>Add</Button>
             </div>
           </Section>
 
           <Section
             title="Attachments"
             aside={
-              <label
-                className={`inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 ${isUploading ? "pointer-events-none opacity-50" : ""}`}
-              >
+              <label className={`inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 ${isUploading ? "pointer-events-none opacity-50" : ""}`}>
                 <Upload size={14} aria-hidden="true" />
                 {isUploading ? "Uploading…" : "Upload image"}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="hidden"
-                  onChange={handleUpload}
-                  disabled={isUploading}
-                />
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleUpload} disabled={isUploading} />
               </label>
             }
           >
             {task.attachments?.length ? (
               <ul className="grid grid-cols-3 gap-2.5">
                 {task.attachments.map((att) => (
-                  <li
-                    key={att._id}
-                    className="group relative aspect-square overflow-hidden rounded-xl border border-line bg-canvas"
-                  >
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={att.fileName}
-                      className="block h-full w-full"
-                    >
-                      <img
-                        src={att.url}
-                        alt={att.fileName}
-                        className="h-full w-full object-cover"
-                      />
+                  <li key={att._id} className="group relative aspect-square overflow-hidden rounded-xl border border-line bg-canvas">
+                    <a href={att.url} target="_blank" rel="noreferrer" title={att.fileName} className="block h-full w-full">
+                      <img src={att.url} alt={att.fileName} className="h-full w-full object-cover" />
                     </a>
                     <button
                       type="button"
@@ -427,6 +359,15 @@ export default function TaskDrawer({
           <div className="border-t border-line bg-[#FAFAF8] px-5 py-4">
             <TaskComments taskId={taskId} />
           </div>
+
+          <Section title="Activity">
+            <ActivityTimeline
+              feed={activityFeed}
+              showTask={false}
+              compact
+              emptyDescription="No recorded activity for this task yet."
+            />
+          </Section>
         </div>
       </aside>
     </div>

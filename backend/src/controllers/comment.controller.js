@@ -7,6 +7,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { getAccessibleTask } from "../utils/taskAccess.js";
 import Workspace from "../models/workspace.model.js";
 import { invalidateNotificationCache } from "../utils/notificationCache.js"; // NEW
+import { logTaskActivity } from "../utils/activity.js";
 
 const resolveMentions = async (text, workspaceId) => {
   if (!workspaceId) return [];
@@ -54,6 +55,9 @@ export const addComment = asyncHandler(async (req, res) => {
   });
 
   const populated = await comment.populate("author", "name email avatar");
+
+  // No comment text in the log: the comment thread is the source of truth.
+  await logTaskActivity({ task, actor: req.user, action: "comment.added" });
 
   // Notify mentioned users (skip notifying yourself)
   for (const userId of mentions) {

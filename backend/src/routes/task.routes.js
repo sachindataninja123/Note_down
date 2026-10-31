@@ -13,6 +13,7 @@ import {
   assignTask,
 } from "../controllers/task.controller.js";
 import { isAuth } from "../middlewares/isAuth.js";
+import { getTaskActivity } from "../controllers/activity.controller.js";
 import multer from "multer";
 import upload from "../middlewares/multer.middleware.js";
 import {
@@ -29,19 +30,16 @@ taskRouter.route("/").post(createTask).get(getAllTasks);
 taskRouter.route("/:id").get(getTaskById).put(updateTask).delete(deleteTask);
 taskRouter.patch("/:id/toggle", toggleTaskStatus);
 taskRouter.patch("/:id/status", updateTaskStatus);
+taskRouter.get("/:id/activity", getTaskActivity);
 
 // Subtask Routes
 taskRouter.post("/:id/subtasks", addSubtask);
 taskRouter.patch("/:id/subtasks/:subtaskId/toggle", toggleSubtask);
 taskRouter.delete("/:id/subtasks/:subtaskId", deleteSubtask);
-taskRouter.patch("/:id/assign", assignTask);
+taskRouter.patch("/:id/assign", assignTask)
 
 // Attachment endpoints
-taskRouter.post(
-  "/:id/attachments",
-  upload.single("file"),
-  uploadTaskAttachment,
-);
+taskRouter.post("/:id/attachments", upload.single("file"), uploadTaskAttachment);
 taskRouter.delete("/:id/attachments/:attachmentId", deleteTaskAttachment);
 
 export default taskRouter;
