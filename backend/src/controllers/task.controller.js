@@ -241,6 +241,8 @@ export const updateTask = asyncHandler(async (req, res) => {
     assertValidStatus(status);
     updates.status = status;
     updates.completed = status === "done";
+    updates.completedAt =
+      status === "done" ? accessible.completedAt || new Date() : null;
   }
   if (dueDate !== undefined)
     updates.dueDate = dueDate ? new Date(dueDate) : null;

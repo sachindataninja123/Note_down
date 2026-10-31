@@ -69,6 +69,12 @@ const taskSchema = new mongoose.Schema(
       default: "todo",
       index: true,
     },
+    // When the task last became "done" (null while it is not done). Powers the
+    // "completed per day" analytics. Kept in sync by the pre-validate hook.
+    completedAt: {
+      type: Date,
+      default: null,
+    },
     // Legacy flag, kept in sync with status by the pre-validate hook below.
     completed: {
       type: Boolean,
@@ -101,6 +107,14 @@ taskSchema.pre("validate", function () {
       : this.status === "done"
         ? "todo"
         : this.status;
+  } else {
+    return;
+  }
+
+  if (this.status === "done") {
+    if (!this.completedAt) this.completedAt = new Date();
+  } else {
+    this.completedAt = null;
   }
 });
 

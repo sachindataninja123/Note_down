@@ -1,5 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config();
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -15,6 +13,7 @@ import { ApiError } from "./utils/ApiError.js";
 import invitationRouter from "./routes/invitation.routes.js";
 import commentRouter from "./routes/comment.routes.js";
 import activityRouter from "./routes/activity.routes.js";
+import analyticsRouter from "./routes/analytics.routes.js";
 
 const app = express();
 
@@ -26,7 +25,7 @@ app.use(morgan("dev"));
 app.use(
   cors({
     // origin:"https://note-down-1-8smd.onrender.com",
-    origin: process.env.CORS_ORIGIN,
+    origin:process.env.CORS_ORIGIN,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -47,6 +46,7 @@ app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/invitations", invitationRouter);
 app.use("/api/v1/tasks", commentRouter);
 app.use("/api/v1/activity", activityRouter);
+app.use("/api/v1/analytics", analyticsRouter);
 
 // 404 Catch-all Handler
 app.use((req, res, next) => {

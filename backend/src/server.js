@@ -4,7 +4,7 @@ import app from "./app.js";
 import connectToDB from "./db/db.js";
 import { initReminderCron } from "./cron/reminderJob.js";
 import Task from "./models/task.model.js";
-import { migrateTaskStatus } from "./utils/taskStatus.js";
+import { migrateTaskStatus, backfillCompletedAt } from "./utils/taskStatus.js";
 
 const PORT = process.env.PORT || 6000;
 const start = async () => {
@@ -17,6 +17,12 @@ const start = async () => {
     if (result.done || result.todo) {
       console.log(
         `Task status migration: ${result.done} -> done, ${result.todo} -> todo`,
+      );
+    }
+    const completed = await backfillCompletedAt(Task);
+    if (completed.backfilled) {
+      console.log(
+        `Backfilled completedAt on ${completed.backfilled} done task(s) (approximate: uses last-updated time)`,
       );
     }
   } catch (err) {

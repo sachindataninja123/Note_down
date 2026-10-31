@@ -53,3 +53,17 @@ export const migrateTaskStatus = async (TaskModel) => {
   );
   return { done: done.modifiedCount, todo: todo.modifiedCount };
 };
+
+/**
+ * Done tasks created before `completedAt` existed have no completion time.
+ * We approximate it with their last-modified time (`updatedAt`), which is the
+ * best information available. Idempotent: only touches done tasks that have no
+ * `completedAt` field. Needs MongoDB 4.2+ (pipeline-style update).
+ */
+export const backfillCompletedAt = async (TaskModel) => {
+  const result = await TaskModel.collection.updateMany(
+    { status: "done", completedAt: { $exists: false } },
+    [{ $set: { completedAt: { $ifNull: ["$updatedAt", "$createdAt"] } } }],
+  );
+  return { backfilled: result.modifiedCount };
+};

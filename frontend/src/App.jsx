@@ -16,6 +16,7 @@ import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import InviteAccept from "./pages/InviteAccept";
 import Activity from "./pages/Activity";
+import Analytics from "./pages/Analytics.jsx";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -70,6 +71,15 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
             </ProtectedRoute>
           }
         />

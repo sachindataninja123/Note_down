@@ -1,12 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { LayoutDashboard, History, Settings, Plus, User, X } from "lucide-react";
+import { LayoutDashboard, BarChart3, History, Settings, Plus, User, X } from "lucide-react";
 import { setCurrentWorkspace } from "../../features/workspaces/workspaceSlice";
 
 // Only pages that really exist belong here. Add My Tasks / Calendar /
 // Analytics / Activity entries in the phase that builds each page.
 const NAV_ITEMS = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/activity", label: "Activity", icon: History },
   { to: "/profile", label: "Settings", icon: Settings },
 ];
@@ -24,7 +25,7 @@ export default function Sidebar({ onManageWorkspaces, onNavigate, onClose }) {
   const { pathname } = useLocation();
   // Workspace-scoped pages stay put when you switch workspace; anything else
   // (e.g. Settings) goes to the Overview of the workspace you picked.
-  const scopedTarget = pathname === "/activity" ? "/activity" : "/";
+  const scopedTarget = ["/activity", "/analytics"].includes(pathname) ? pathname : "/";
 
   const select = (workspace) => {
     dispatch(setCurrentWorkspace(workspace));

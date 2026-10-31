@@ -40,3 +40,23 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * Chart colours (Phase 5). Validated with the dataviz palette checker:
+ * the status ramp is one hue, light -> dark, and its lightest step clears 2:1
+ * on the chart surface. Light theme only, because the app has no dark theme.
+ */
+.viz-root {
+  --viz-surface: #fcfcfb;
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-series: #2a78d6;
+  --viz-st-todo: #86b6ef;
+  --viz-st-in_progress: #3987e5;
+  --viz-st-in_review: #1c5cab;
+  --viz-st-done: #0d366b;
+  --viz-critical: #d03b3b;
+}
