@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { fetchWorkspaces } from "../../features/workspaces/workspaceSlice";
 import WorkspaceModal from "../dashboard/WorkspaceModal";
-import Sidebar from "./Sidebar";
 import Header from "./Header";
+import SideBar from "./SideBar";
 
 export default function AppShell({ title, onCreateTask, showSearch = false, children }) {
   const dispatch = useDispatch();
@@ -25,7 +25,7 @@ export default function AppShell({ title, onCreateTask, showSearch = false, chil
     <div className="min-h-screen bg-canvas font-sans text-ink-900 antialiased selection:bg-brand-600 selection:text-white">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-line lg:block">
-        <Sidebar onManageWorkspaces={() => setWorkspaceModalOpen(true)} />
+        <SideBar onManageWorkspaces={() => setWorkspaceModalOpen(true)} />
       </aside>
 
       {/* Mobile / tablet drawer */}

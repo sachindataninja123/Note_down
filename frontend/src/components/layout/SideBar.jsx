@@ -19,7 +19,7 @@ const linkClass = ({ isActive }) =>
       : "text-ink-600 hover:bg-canvas hover:text-ink-900"
   }`;
 
-export default function Sidebar({ onManageWorkspaces, onNavigate, onClose }) {
+export default function SideBar({ onManageWorkspaces, onNavigate, onClose }) {
   const dispatch = useDispatch();
   const { workspaces, currentWorkspace } = useSelector((s) => s.workspaces);
   const { pathname } = useLocation();
