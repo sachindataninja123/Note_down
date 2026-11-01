@@ -24,6 +24,24 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Which notifications this user wants. Missing = on (existing users).
+    notificationPreferences: {
+      ASSIGNED: { type: Boolean, default: true },
+      MENTION: { type: Boolean, default: true },
+      COMMENT: { type: Boolean, default: true },
+      DUE_SOON: { type: Boolean, default: true },
+    },
+
+    profilePic: {
+      url: {
+        type: String,
+        default: "",
+      },
+      publicId: {
+        type: String,
+        default: "",
+      },
+    },
 
     resetOtp: {
       type: String,

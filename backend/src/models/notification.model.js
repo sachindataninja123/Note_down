@@ -33,10 +33,22 @@ const notificationSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Optional. A second notification with the same key is rejected by the
+    // unique index below, so reminders cannot be duplicated even when two
+    // server instances run the cron at once.
+    dedupeKey: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
   }
+);
+
+notificationSchema.index(
+  { dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } },
 );
 
 const Notification = mongoose.model("Notification", notificationSchema);

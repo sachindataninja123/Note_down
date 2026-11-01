@@ -5,6 +5,7 @@ import {
   getTaskById,
   updateTask,
   toggleTaskStatus,
+  updateTaskStatus,
   deleteTask,
   addSubtask,
   toggleSubtask,
@@ -12,6 +13,7 @@ import {
   assignTask,
 } from "../controllers/task.controller.js";
 import { isAuth } from "../middlewares/isAuth.js";
+import { getTaskActivity } from "../controllers/activity.controller.js";
 import multer from "multer";
 import upload from "../middlewares/multer.middleware.js";
 import {
@@ -27,6 +29,8 @@ taskRouter.use(isAuth);
 taskRouter.route("/").post(createTask).get(getAllTasks);
 taskRouter.route("/:id").get(getTaskById).put(updateTask).delete(deleteTask);
 taskRouter.patch("/:id/toggle", toggleTaskStatus);
+taskRouter.patch("/:id/status", updateTaskStatus);
+taskRouter.get("/:id/activity", getTaskActivity);
 
 // Subtask Routes
 taskRouter.post("/:id/subtasks", addSubtask);

@@ -14,6 +14,15 @@ import {
 } from "../utils/otp.js";
 import { sendResetOtpEmail } from "../utils/sendOtpEmail.js";
 
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 // --- Helpers ---
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -232,8 +241,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           {},
-          "If an account exists with this email, an OTP has been sent"
-        )
+          "If an account exists with this email, an OTP has been sent",
+        ),
       );
   }
 
@@ -245,13 +254,11 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   ) {
     const elapsedSeconds =
       (Date.now() - user.resetOtpLastSentAt.getTime()) / 1000;
-    const waitSeconds = Math.ceil(
-      OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds
-    );
+    const waitSeconds = Math.ceil(OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds);
 
     throw new ApiError(
       429,
-      `Please wait ${waitSeconds}s before requesting another OTP`
+      `Please wait ${waitSeconds}s before requesting another OTP`,
     );
   }
 
@@ -281,7 +288,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
     throw new ApiError(
       500,
-      `Failed to deliver email: ${emailError.message || "SMTP connection error"}`
+      `Failed to deliver email: ${emailError.message || "SMTP connection error"}`,
     );
   }
 
@@ -291,8 +298,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         {},
-        "If an account exists with this email, an OTP has been sent"
-      )
+        "If an account exists with this email, an OTP has been sent",
+      ),
     );
 });
 
@@ -419,12 +426,15 @@ export const changePassword = asyncHandler(async (req, res) => {
   if (newPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ApiError(
       400,
-      `New password must be at least ${MIN_PASSWORD_LENGTH} characters`
+      `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
     );
   }
 
   if (oldPassword === newPassword) {
-    throw new ApiError(400, "New password must be different from the old password");
+    throw new ApiError(
+      400,
+      "New password must be different from the old password",
+    );
   }
 
   const user = await User.findById(req.user._id);
@@ -449,4 +459,120 @@ export const changePassword = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+export const updateProfileImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  if (!req.file) {
+    throw new ApiError(400, "Please upload a profile image");
+  }
+
+  const ALLOWED_MIME_TYPES = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+  ]);
+
+  if (!ALLOWED_MIME_TYPES.has(req.file.mimetype)) {
+    throw new ApiError(400, "Only PNG, JPG, WEBP and GIF images are allowed");
+  }
+
+  if (req.file.size > 5 * 1024 * 1024) {
+    throw new ApiError(400, "Image size cannot exceed 5MB");
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const uploadResult = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "taskpulse/profile_images",
+        resource_type: "image",
+        transformation: [
+          {
+            width: 500,
+            height: 500,
+            crop: "fill",
+            gravity: "face",
+          },
+        ],
+      },
+
+      (error, result) => {
+        if (error) {
+          return reject(error);
+        }
+
+        resolve(result);
+      },
+    );
+
+    streamifier.createReadStream(req.file.buffer).pipe(stream);
+  });
+
+  const oldPublicId = user.profilePic?.publicId;
+
+  user.profilePic = {
+    url: uploadResult.secure_url,
+    publicId: uploadResult.public_id,
+  };
+
+  await user.save();
+
+  if (oldPublicId) {
+    try {
+      await cloudinary.uploader.destroy(oldPublicId);
+    } catch (error) {
+      console.error("Old profile image deletion failed:", error);
+    }
+  }
+
+  const updatedUser = await User.findById(userId).select("-password");
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "Profile image updated successfully"),
+    );
+});
+
+export const deleteProfileImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const publicId = user.profilePic?.publicId;
+
+  if (!publicId) {
+    throw new ApiError(404, "Profile image not found");
+  }
+
+  // Delete from Cloudinary
+  await cloudinary.uploader.destroy(publicId);
+
+  // Reset profile image
+  user.profilePic = {
+    url: "",
+    publicId: "",
+  };
+
+  await user.save();
+
+  const updatedUser = await User.findById(userId).select("-password");
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "Profile image deleted successfully"),
+    );
 });

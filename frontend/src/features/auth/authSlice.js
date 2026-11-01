@@ -25,22 +25,19 @@ export const register = createAsyncThunk(
         error.response?.data?.message || error.message || "Registration failed";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 2. Login Thunk
-export const login = createAsyncThunk(
-  "auth/login", 
-  async (user, thunkAPI) => {
-    try {
-      return await authService.login(user);
-    } catch (error) {
-      const message =
-        error.response?.data?.message || error.message || "Login failed";
-      return thunkAPI.rejectWithValue(message);
-    }
+export const login = createAsyncThunk("auth/login", async (user, thunkAPI) => {
+  try {
+    return await authService.login(user);
+  } catch (error) {
+    const message =
+      error.response?.data?.message || error.message || "Login failed";
+    return thunkAPI.rejectWithValue(message);
   }
-);
+});
 
 // 3. Get Current User Profile
 export const getProfile = createAsyncThunk(
@@ -55,21 +52,48 @@ export const getProfile = createAsyncThunk(
         "Failed to fetch profile";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 4. Logout Thunk
-export const logout = createAsyncThunk(
-  "auth/logout", 
-  async (_, thunkAPI) => {
+export const logout = createAsyncThunk("auth/logout", async (_, thunkAPI) => {
+  try {
+    return await authService.logout();
+  } catch (error) {
+    const message =
+      error.response?.data?.message || error.message || "Logout failed";
+    return thunkAPI.rejectWithValue(message);
+  }
+});
+
+export const updateProfileImg = createAsyncThunk(
+  "auth/updateProfileImg",
+  async (data, thunkAPI) => {
     try {
-      return await authService.logout();
+      return await authService.updateProfilePic(data);
     } catch (error) {
       const message =
-        error.response?.data?.message || error.message || "Logout failed";
+        error.response?.data?.message ||
+        error.message ||
+        "Update Profile Image failed";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
+);
+
+export const deleteProfileImg = createAsyncThunk(
+  "auth/deleteProfileImg",
+  async (_, thunkAPI) => {
+    try {
+      return await authService.deleteProfilePic();
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Delete Profile Image failed";
+      return thunkAPI.rejectWithValue(message);
+    }
+  },
 );
 
 // 5. Forgot Password (Request OTP)
@@ -85,7 +109,7 @@ export const forgotPassword = createAsyncThunk(
         "Failed to send reset OTP";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 6. Verify Reset OTP
@@ -101,7 +125,7 @@ export const verifyOtp = createAsyncThunk(
         "Failed to verify OTP";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 7. Reset Password with Reset Token
@@ -117,7 +141,7 @@ export const resetPassword = createAsyncThunk(
         "Failed to reset password";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 // 8. Change Password (For Logged-in Users)
@@ -133,7 +157,7 @@ export const changePassword = createAsyncThunk(
         "Failed to change password";
       return thunkAPI.rejectWithValue(message);
     }
-  }
+  },
 );
 
 export const authSlice = createSlice({
@@ -209,6 +233,54 @@ export const authSlice = createSlice({
         state.isAuthChecked = true;
         state.isAuthenticated = false;
         state.user = null;
+      })
+      
+      // Update Profile Image
+      .addCase(updateProfileImg.pending, (state) => {
+        state.isLoading = true;
+        state.isError = false;
+        state.message = "";
+      })
+
+      .addCase(updateProfileImg.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+
+        // Update user in Redux store
+        state.user = action.payload.data;
+
+        state.message =
+          action.payload.message || "Profile image updated successfully";
+      })
+
+      .addCase(updateProfileImg.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
+
+      // Delete Profile Image
+      .addCase(deleteProfileImg.pending, (state) => {
+        state.isLoading = true;
+        state.isError = false;
+        state.message = "";
+      })
+
+      .addCase(deleteProfileImg.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+
+        // Update user in Redux store
+        state.user = action.payload.data;
+
+        state.message =
+          action.payload.message || "Profile image deleted successfully";
+      })
+
+      .addCase(deleteProfileImg.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
       })
 
       // Logout
@@ -287,7 +359,8 @@ export const authSlice = createSlice({
       .addCase(changePassword.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        state.message = action.payload.message || "Password changed successfully";
+        state.message =
+          action.payload.message || "Password changed successfully";
       })
       .addCase(changePassword.rejected, (state, action) => {
         state.isLoading = false;

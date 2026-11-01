@@ -1,1 +1,62 @@
 @import "tailwindcss";
+
+/*
+ * TaskPulse design tokens (Phase 1).
+ * Use these (bg-brand-600, text-ink-900, bg-surface, ...) in new components.
+ * Existing components that use raw hex values keep working unchanged.
+ */
+@theme {
+  --color-brand-50: #f2f0ff;
+  --color-brand-100: #e4e0fb;
+  --color-brand-500: #6654e8;
+  --color-brand-600: #432dd7;
+  --color-brand-700: #3824c2;
+
+  --color-ink-900: #14151a;
+  --color-ink-600: #555761;
+  --color-ink-400: #8b8d98;
+
+  --color-line: #ecece6;
+  --color-canvas: #f6f7f9;
+  --color-surface: #ffffff;
+
+  --color-success-50: #effaf3;
+  --color-success-600: #178a4c;
+  --color-warning-50: #fff7e6;
+  --color-warning-600: #b7791f;
+  --color-danger-50: #fff2ee;
+  --color-danger-600: #e14a2c;
+  --color-info-50: #eef6ff;
+  --color-info-600: #1d6fd8;
+
+  --radius-card: 1rem;
+  --shadow-card: 0 2px 8px rgba(20, 21, 26, 0.04);
+  --shadow-pop: 0 18px 50px rgba(20, 20, 30, 0.12);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * Chart colours (Phase 5). Validated with the dataviz palette checker:
+ * the status ramp is one hue, light -> dark, and its lightest step clears 2:1
+ * on the chart surface. Light theme only, because the app has no dark theme.
+ */
+.viz-root {
+  --viz-surface: #fcfcfb;
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-series: #2a78d6;
+  --viz-st-todo: #86b6ef;
+  --viz-st-in_progress: #3987e5;
+  --viz-st-in_review: #1c5cab;
+  --viz-st-done: #0d366b;
+  --viz-critical: #d03b3b;
+}

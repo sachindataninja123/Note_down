@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Workspace from "../models/workspace.model.js";
 import Task from "../models/task.model.js";
+import { ejectFromWorkspace, emitWorkspaceChanged } from "../utils/realtime.js";
 import Notification from "../models/notification.model.js";
 import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -12,6 +13,8 @@ import {
   invalidateWorkspaceCache,
   invalidateWorkspaceCacheForUsers,
 } from "../utils/workspaceCache.js";
+import Activity from "../models/activity.model.js";
+import { logActivity } from "../utils/activity.js";
 
 // Create Workspace
 export const createWorkspace = asyncHandler(async (req, res) => {
@@ -29,6 +32,13 @@ export const createWorkspace = asyncHandler(async (req, res) => {
   });
 
   await invalidateWorkspaceCache(req.user._id.toString()); // NEW
+
+  await logActivity({
+    workspace: workspace._id,
+    actor: req.user._id,
+    action: "workspace.created",
+    details: { workspaceName: workspace.name },
+  });
 
   return res
     .status(201)
@@ -79,6 +89,16 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
   await Task.deleteMany({ workspace: id });
   await Workspace.findByIdAndDelete(id);
 
+  // The workspace's feed can't be read by anyone once it is gone, so drop it,
+  // and leave a single personal-scope record for the person who deleted it.
+  await Activity.deleteMany({ workspace: id });
+  await logActivity({
+    workspace: null,
+    actor: req.user._id,
+    action: "workspace.deleted",
+    details: { workspaceName: workspace.name, tasksDeleted: taskIds.length },
+  });
+
   // NEW: every member (owner + all members) had this workspace in their
   // cached list — invalidate all of them, not just the actor.
   const affectedUserIds = [
@@ -86,6 +106,7 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
     ...workspace.members.map((m) => m.user.toString()),
   ];
   await invalidateWorkspaceCacheForUsers(affectedUserIds);
+  for (const uid of affectedUserIds) ejectFromWorkspace(uid, id);
 
   return res
     .status(200)
@@ -113,12 +134,30 @@ export const removeMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "The owner cannot be removed. Delete the workspace instead.");
   }
 
+  const removedUser = await User.findById(memberId, "name").lean();
+  const wasMember = workspace.members.some((m) => m.user.toString() === memberId);
+
   workspace.members = workspace.members.filter((m) => m.user.toString() !== memberId);
   await workspace.save();
+
+  if (wasMember) {
+    await logActivity({
+      workspace: workspace._id,
+      actor: req.user._id,
+      action: "member.removed",
+      details: {
+        targetUser: memberId,
+        targetName: removedUser?.name || "a member",
+        workspaceName: workspace.name,
+      },
+    });
+  }
 
   // NEW: invalidate both the owner's cache (member list changed) and the
   // removed member's cache (this workspace disappears from their list).
   await invalidateWorkspaceCacheForUsers([req.user._id.toString(), memberId]);
+  ejectFromWorkspace(memberId, workspace._id);
+  emitWorkspaceChanged(workspace._id, "members");
 
   const populated = await workspace.populate("members.user", "name email avatar");
 

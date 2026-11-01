@@ -36,6 +36,12 @@ const toggleTask = async (taskId) => {
   return response.data;
 };
 
+// PATCH /api/v1/tasks/:id/status  { status }
+const updateTaskStatus = async (taskId, status) => {
+  const response = await api.patch(`/tasks/${taskId}/status`, { status });
+  return response.data;
+};
+
 // DELETE /api/v1/tasks/:id
 const deleteTask = async (taskId) => {
   const response = await api.delete(`/tasks/${taskId}`);
@@ -93,6 +99,7 @@ const taskService = {
   createTask,
   updateTask,
   toggleTask,
+  updateTaskStatus,
   assignTask,
   deleteTask,
   addSubtask,

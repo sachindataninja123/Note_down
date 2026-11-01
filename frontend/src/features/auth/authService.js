@@ -20,6 +20,16 @@ const logout = async () => {
   return response.data;
 };
 
+const updateProfilePic = async (formData) => {
+  const response = await api.put("/auth/profile-image", formData);
+  return response.data;
+};
+
+const deleteProfilePic = async () => {
+  const response = await api.delete("/auth/profile-image");
+  return response.data;
+};
+
 const forgotPassword = async (emailData) => {
   const payload =
     typeof emailData === "string" ? { email: emailData } : emailData;
@@ -54,6 +64,8 @@ const authService = {
   login,
   getProfile,
   logout,
+  updateProfilePic,
+  deleteProfilePic,
   forgotPassword,
   verifyOtp,
   resetPassword,

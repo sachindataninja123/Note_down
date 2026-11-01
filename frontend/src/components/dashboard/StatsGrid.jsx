@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 export default function StatsGrid({ stats }) {
   const cards = useMemo(
@@ -6,30 +6,30 @@ export default function StatsGrid({ stats }) {
       {
         label: "Total Tasks",
         value: stats.total,
-        badge: "Workspace",
+        badge: "All",
         valueColor: "text-[#14151A]",
         badgeClass: "bg-[#F2F2EE] text-[#63656F]",
       },
       {
-        label: "Pending",
-        value: stats.pending,
-        badge: "In Progress",
+        label: "To Do",
+        value: stats.todo,
+        badge: "Not started",
+        valueColor: "text-[#63656F]",
+        badgeClass: "bg-[#F2F2EE] text-[#63656F]",
+      },
+      {
+        label: "In Progress",
+        value: stats.inProgress,
+        badge: stats.inReview ? `${stats.inReview} in review` : "Active",
         valueColor: "text-[#B7791F]",
         badgeClass: "bg-[#FFF7E6] text-[#B7791F] border border-[#FDE7B8]",
       },
       {
-        label: "Completed",
+        label: "Done",
+        badge: `${stats.progressPercent}%`,
         value: stats.completed,
-        badge: "Done",
         valueColor: "text-[#178A4C]",
         badgeClass: "bg-[#EFFAF3] text-[#178A4C] border border-[#CDEFDC]",
-      },
-      {
-        label: "Completion",
-        badge: "Velocity",
-        value: `${stats.progressPercent}%`,
-        valueColor: "text-[#432DD7]",
-        badgeClass: "bg-[#F2F0FF] text-[#432DD7] border border-[#E0DAFB]",
         progress: stats.progressPercent,
       },
     ],
@@ -54,7 +54,7 @@ export default function StatsGrid({ stats }) {
             rounded-xl
             sm:rounded-2xl
             border
-            border-[#ECECE6]
+            border-line
             shadow-[0_2px_8px_rgba(20,21,26,0.02)]
             hover:border-[#D8D8D2]
             hover:shadow-[0_6px_20px_rgba(20,21,26,0.04)]
@@ -68,7 +68,7 @@ export default function StatsGrid({ stats }) {
 
           {/* Card Header: Label & Status Badge */}
           <div className="flex items-center justify-between gap-1 sm:gap-2">
-            <span className="text-[10px] sm:text-[11px] font-bold text-[#8B8D98] uppercase tracking-[0.06em] truncate">
+            <span className="text-[10px] sm:text-[11px] font-bold text-ink-400 uppercase tracking-[0.06em] truncate">
               {card.label}
             </span>
 
@@ -111,7 +111,7 @@ export default function StatsGrid({ stats }) {
               <div className="w-10 sm:w-14 lg:w-16 shrink-0 self-center">
                 <div className="w-full bg-[#F2F2EE] h-1.5 sm:h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-[#432DD7] h-full rounded-full transition-all duration-700 ease-out"
+                    className="bg-success-600 h-full rounded-full transition-all duration-700 ease-out"
                     style={{
                       width: `${Math.min(Math.max(card.progress, 0), 100)}%`,
                     }}

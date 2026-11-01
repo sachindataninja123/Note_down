@@ -7,6 +7,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { getAccessibleTask } from "../utils/taskAccess.js";
 import { scopeFromTask, invalidateTaskCache } from "../utils/taskCache.js";
+import { emitTaskEvent } from "../utils/realtime.js";
+import { logTaskActivity } from "../utils/activity.js";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -61,6 +63,13 @@ export const uploadTaskAttachment = asyncHandler(async (req, res) => {
 
   await task.save();
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "attachment.uploaded",
+    details: { fileName: req.file.originalname },
+  });
 
   return res
     .status(201)
@@ -80,11 +89,19 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   const attachment = task.attachments.id(attachmentId);
   if (!attachment) throw new ApiError(404, "Attachment not found");
 
+  const removedFileName = attachment.fileName;
   await cloudinary.uploader.destroy(attachment.publicId);
 
   task.attachments.pull({ _id: attachmentId });
   await task.save();
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "attachment.deleted",
+    details: { fileName: removedFileName },
+  });
 
   return res
     .status(200)

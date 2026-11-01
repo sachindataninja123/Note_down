@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { TASK_STATUSES } from "../utils/taskStatus.js";
 
 const subtaskSchema = new mongoose.Schema({
   title: {
@@ -61,6 +62,20 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Workflow status (todo -> in_progress -> in_review -> done).
+    status: {
+      type: String,
+      enum: TASK_STATUSES,
+      default: "todo",
+      index: true,
+    },
+    // When the task last became "done" (null while it is not done). Powers the
+    // "completed per day" analytics. Kept in sync by the pre-validate hook.
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    // Legacy flag, kept in sync with status by the pre-validate hook below.
     completed: {
       type: Boolean,
       default: false,
@@ -80,6 +95,28 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.index({ owner: 1, completed: 1, createdAt: -1 });
+taskSchema.index({ workspace: 1, status: 1, createdAt: -1 });
+
+// Keep `status` and the legacy `completed` flag consistent on every save().
+taskSchema.pre("validate", function () {
+  if (this.isModified("status")) {
+    this.completed = this.status === "done";
+  } else if (this.isModified("completed")) {
+    this.status = this.completed
+      ? "done"
+      : this.status === "done"
+        ? "todo"
+        : this.status;
+  } else {
+    return;
+  }
+
+  if (this.status === "done") {
+    if (!this.completedAt) this.completedAt = new Date();
+  } else {
+    this.completedAt = null;
+  }
+});
 
 const Task = mongoose.model("Task", taskSchema);
 

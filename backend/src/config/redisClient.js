@@ -1,18 +1,23 @@
 import dotenv from "dotenv";
-dotenv.config();
 import Redis from "ioredis";
 
-const REDIS_URL =
-  process.env.REDIS_URL ||
-  "rediss://red-da4umu2jobas73d06qug:rNjiXJwX5xqQHFCwsvK8hoJFQq1LWQ8M@oregon-keyvalue.render.com:6379";
+dotenv.config();
 
-const redisClient = new Redis(REDIS_URL, {
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL is missing");
+}
+
+const redisClient = new Redis(process.env.REDIS_URL, {
   maxRetriesPerRequest: 3,
   retryStrategy: (times) => Math.min(times * 200, 2000),
 });
 
 redisClient.on("connect", () => {
-  console.log("✅ Redis connected");
+  console.log("Redis connected");
+});
+
+redisClient.on("ready", () => {
+  console.log("Redis ready");
 });
 
 redisClient.on("error", (err) => {

@@ -11,9 +11,16 @@ import {
   setCachedTasks,
   invalidateTaskCache,
 } from "../utils/taskCache.js";
-import Notification from "../models/notification.model.js";
 import Workspace from "../models/workspace.model.js";
-import { invalidateNotificationCache } from "../utils/notificationCache.js";
+import { createNotification } from "../utils/notify.js";
+import { emitTaskEvent } from "../utils/realtime.js";
+import {
+  assertValidStatus,
+  buildStatusCondition,
+} from "../utils/taskStatus.js";
+import User from "../models/user.model.js";
+import { logTaskActivity } from "../utils/activity.js";
+import { diffTaskUpdate } from "../utils/taskActivity.js";
 
 // --- TASK CRUD ---
 
@@ -27,7 +34,10 @@ export const createTask = asyncHandler(async (req, res) => {
     subtasks,
     workspace,
     assignedTo, // NEW
+    status,
   } = req.body || {};
+
+  if (status !== undefined) assertValidStatus(status);
 
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ApiError(400, "Task title is required");
@@ -75,6 +85,7 @@ export const createTask = asyncHandler(async (req, res) => {
     description: description ? description.trim() : "",
     category: category || null,
     priority: priority || "Medium",
+    status: status || "todo",
     dueDate: dueDate ? new Date(dueDate) : null,
     subtasks: Array.isArray(subtasks) ? subtasks : [],
     workspace: workspace || null,
@@ -83,6 +94,14 @@ export const createTask = asyncHandler(async (req, res) => {
   });
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "task.created",
+    details: { status: task.status, priority: task.priority },
+  });
 
   const populated = await task.populate([
     { path: "category", select: "name color icon" },
@@ -91,14 +110,14 @@ export const createTask = asyncHandler(async (req, res) => {
 
   for (const userId of validAssignees) {
     if (userId.toString() === req.user._id.toString()) continue;
-    await Notification.create({
+    await createNotification({
       recipient: userId,
       task: task._id,
       title: "Task assigned to you",
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
+      dedupeWindowMs: 2 * 60 * 1000,
     });
-    await invalidateNotificationCache(userId.toString()); // NEW
   }
 
   return res
@@ -128,8 +147,8 @@ export const getAllTasks = asyncHandler(async (req, res) => {
     scope = buildScope({ userId: req.user._id });
   }
 
-  if (status === "active") query.completed = false;
-  if (status === "completed") query.completed = true;
+  const statusCondition = buildStatusCondition(status);
+  if (statusCondition) query.status = statusCondition;
   if (category && category !== "All") query.category = category;
   if (priority && priority !== "All") query.priority = priority;
 
@@ -188,12 +207,23 @@ export const getTaskById = asyncHandler(async (req, res) => {
 
 export const updateTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, description, category, priority, dueDate } = req.body || {};
+  const { title, description, category, priority, dueDate, status } =
+    req.body || {};
 
   if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
 
   const accessible = await getAccessibleTask(id, req.user);
   if (!accessible) throw new ApiError(404, "Task not found");
+
+  // Snapshot BEFORE the update so we can record exactly what changed.
+  const before = {
+    title: accessible.title,
+    description: accessible.description,
+    category: accessible.category,
+    priority: accessible.priority,
+    status: accessible.status,
+    dueDate: accessible.dueDate,
+  };
 
   const updates = {};
   if (title !== undefined) {
@@ -208,6 +238,13 @@ export const updateTask = asyncHandler(async (req, res) => {
   }
   if (category !== undefined) updates.category = category || null;
   if (priority !== undefined) updates.priority = priority;
+  if (status !== undefined) {
+    assertValidStatus(status);
+    updates.status = status;
+    updates.completed = status === "done";
+    updates.completedAt =
+      status === "done" ? accessible.completedAt || new Date() : null;
+  }
   if (dueDate !== undefined)
     updates.dueDate = dueDate ? new Date(dueDate) : null;
 
@@ -215,9 +252,16 @@ export const updateTask = asyncHandler(async (req, res) => {
     id,
     { $set: updates },
     { new: true, runValidators: true },
-  ).populate("category", "name color icon");
+  )
+    .populate("category", "name color icon")
+    .populate("assignedTo", "name email avatar");
 
   await invalidateTaskCache(scopeFromTask(updatedTask));
+  emitTaskEvent(req, updatedTask, "task:upserted");
+
+  for (const event of diffTaskUpdate(before, updates)) {
+    await logTaskActivity({ task: updatedTask, actor: req.user, ...event });
+  }
 
   return res
     .status(200)
@@ -231,10 +275,19 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   const task = await getAccessibleTask(id, req.user);
   if (!task) throw new ApiError(404, "Task not found");
 
-  task.completed = !task.completed;
+  // Setting status is enough: the model hook keeps `completed` in sync.
+  const fromStatus = task.status;
+  task.status = task.status === "done" ? "todo" : "done";
   await task.save();
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "task.status_changed",
+    details: { from: fromStatus, to: task.status },
+  });
 
   return res
     .status(200)
@@ -245,6 +298,42 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
         `Task marked as ${task.completed ? "completed" : "active"}`,
       ),
     );
+});
+
+// PATCH /tasks/:id/status  { status } — used by the Kanban board.
+export const updateTaskStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body || {};
+
+  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, "Invalid Task ID");
+  assertValidStatus(status);
+
+  const task = await getAccessibleTask(id, req.user);
+  if (!task) throw new ApiError(404, "Task not found");
+
+  if (task.status !== status) {
+    const fromStatus = task.status;
+    task.status = status;
+    await task.save();
+    await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+    await logTaskActivity({
+      task,
+      actor: req.user,
+      action: "task.status_changed",
+      details: { from: fromStatus, to: status },
+    });
+  }
+
+  const populated = await task.populate([
+    { path: "category", select: "name color icon" },
+    { path: "owner", select: "name email" },
+    { path: "assignedTo", select: "name email avatar" },
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, populated, "Task status updated"));
 });
 
 export const deleteTask = asyncHandler(async (req, res) => {
@@ -275,6 +364,9 @@ export const deleteTask = asyncHandler(async (req, res) => {
   await Task.findByIdAndDelete(id);
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:deleted");
+  // History is kept after deletion; details.taskTitle says what it was.
+  await logTaskActivity({ task, actor: req.user, action: "task.deleted" });
 
   return res
     .status(200)
@@ -322,21 +414,47 @@ export const assignTask = asyncHandler(async (req, res) => {
   ]);
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
 
   // Notify newly-added assignees only (not people already assigned)
   const newlyAssigned = userIds.filter(
     (id) => !previousAssignees.includes(id.toString()),
   );
+  const nextIds = userIds.map((id) => id.toString());
+  const removed = previousAssignees.filter((id) => !nextIds.includes(id));
+
+  const changedIds = [...newlyAssigned.map(String), ...removed];
+  if (changedIds.length) {
+    const users = await User.find({ _id: { $in: changedIds } }, "name").lean();
+    const nameOf = (uid) =>
+      users.find((u) => String(u._id) === String(uid))?.name || "a member";
+    for (const uid of newlyAssigned) {
+      await logTaskActivity({
+        task,
+        actor: req.user,
+        action: "task.assignee_added",
+        details: { targetUser: uid, targetName: nameOf(uid) },
+      });
+    }
+    for (const uid of removed) {
+      await logTaskActivity({
+        task,
+        actor: req.user,
+        action: "task.assignee_removed",
+        details: { targetUser: uid, targetName: nameOf(uid) },
+      });
+    }
+  }
   for (const userId of newlyAssigned) {
     if (userId.toString() === req.user._id.toString()) continue;
-    await Notification.create({
+    await createNotification({
       recipient: userId,
       task: task._id,
       title: "Task assigned to you",
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
+      dedupeWindowMs: 2 * 60 * 1000,
     });
-    await invalidateNotificationCache(userId.toString());
   }
 
   return res
@@ -365,6 +483,13 @@ export const addSubtask = asyncHandler(async (req, res) => {
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: "subtask.created",
+    details: { subtaskTitle: title.trim() },
+  });
 
   return res
     .status(201)
@@ -388,6 +513,13 @@ export const toggleSubtask = asyncHandler(async (req, res) => {
   await task.save();
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  await logTaskActivity({
+    task,
+    actor: req.user,
+    action: subtask.completed ? "subtask.completed" : "subtask.reopened",
+    details: { subtaskTitle: subtask.title },
+  });
 
   return res
     .status(200)
@@ -404,6 +536,8 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   const accessible = await getAccessibleTask(id, req.user);
   if (!accessible) throw new ApiError(404, "Task not found");
 
+  const removedSubtaskTitle = accessible.subtasks.id(subtaskId)?.title;
+
   const task = await Task.findByIdAndUpdate(
     id,
     { $pull: { subtasks: { _id: subtaskId } } },
@@ -411,6 +545,15 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
+  if (removedSubtaskTitle) {
+    await logTaskActivity({
+      task,
+      actor: req.user,
+      action: "subtask.deleted",
+      details: { subtaskTitle: removedSubtaskTitle },
+    });
+  }
 
   return res
     .status(200)

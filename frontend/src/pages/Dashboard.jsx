@@ -1,16 +1,24 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
-import { fetchTasks, removeTask } from "../features/tasks/taskSlice";
+import { fetchTasks, removeTask, setViewMode } from "../features/tasks/taskSlice";
+import { getTaskStatus } from "../features/tasks/taskStatus";
 import { fetchCategories } from "../features/categories/categorySlice";
 
-import Navbar from "../components/Navbar";
+import AppShell from "../components/layout/AppShell";
+import EmptyState from "../components/ui/EmptyState";
+import Button from "../components/ui/Button";
+import { ClipboardList, Plus } from "lucide-react";
 import PulseMark from "../components/PulseMark";
 import StatsGrid from "../components/dashboard/StatsGrid";
 import FilterBar from "../components/dashboard/FilterBar";
+import KanbanBoard from "../components/dashboard/KanbanBoard";
+import CalendarView from "../components/dashboard/CalenderView";
+import TaskDrawer from "../components/dashboard/TaskDrawer";
+import ViewSwitcher from "../components/dashboard/ViewSwitcher";
 import TaskItem from "../components/dashboard/TaskItem";
 import CreateTaskModal from "../components/dashboard/CreateTaskModal";
-import CreateCategoryModal from "../components/dashboard/CreateCategoryModal";
 import DeleteConfirmModal from "../components/dashboard/DeleteConfirmModal";
 import EditTaskModal from "../components/dashboard/EditTaskModal";
 import ManageCategoriesModal from "../components/dashboard/ManageCategoriesModal";
@@ -18,16 +26,65 @@ import ManageCategoriesModal from "../components/dashboard/ManageCategoriesModal
 export default function Dashboard() {
   const dispatch = useDispatch();
 
-  const { tasks, statusFilter, searchQuery, assignedToMe, isLoading } =
+  const { tasks, statusFilter, searchQuery, assignedToMe, isLoading, viewMode } =
     useSelector((state) => state.tasks);
   const { selectedCategory } = useSelector((state) => state.categories);
   const { currentWorkspace } = useSelector((state) => state.workspaces);
+  const user = useSelector((state) => state.auth.user);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [deleteTaskTarget, setDeleteTaskTarget] = useState(null);
-  const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [openTaskId, setOpenTaskId] = useState(null);
+  // `?task=<id>` comes from clicking a notification. The drawer opens as soon
+  // as that task is in the loaded list (it may first need its workspace's
+  // tasks to load); derived, so no state is set in an effect.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get("task");
+  const requestedIsLoaded = Boolean(
+    requestedTaskId && tasks.some((t) => t._id === requestedTaskId),
+  );
+  const drawerTaskId = openTaskId || (requestedIsLoaded ? requestedTaskId : null);
+  // `n` changes only when a date is chosen, so CreateTaskModal remounts and
+  // starts with that due date; a plain "New Task" keeps any unsaved draft.
+  const [createSeed, setCreateSeed] = useState({ date: "", n: 0 });
+
+  const openCreate = (date) => {
+    if (typeof date === "string") {
+      setCreateSeed((prev) => ({ date, n: prev.n + 1 }));
+    }
+    setIsTaskModalOpen(true);
+  };
+  const closeDrawer = useCallback(() => {
+    setOpenTaskId(null);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("task");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  // If the requested task never shows up (deleted, or hidden by a filter),
+  // say so instead of doing nothing.
+  useEffect(() => {
+    if (!requestedTaskId || requestedIsLoaded) return undefined;
+    const timer = setTimeout(() => {
+      toast.error("Couldn't find that task in this view. It may be deleted or filtered out.");
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("task");
+          return next;
+        },
+        { replace: true },
+      );
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [requestedTaskId, requestedIsLoaded, setSearchParams]);
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -42,16 +99,33 @@ export default function Dashboard() {
     searchQuery,
     currentWorkspace,
     assignedToMe,
+    viewMode,
   ]);
 
   const stats = useMemo(() => {
+    const counts = { todo: 0, in_progress: 0, in_review: 0, done: 0 };
+    for (const t of tasks) counts[getTaskStatus(t)] += 1;
     const total = tasks.length;
-    const completed = tasks.filter((t) => t.completed).length;
-    const pending = total - completed;
     const progressPercent =
-      total === 0 ? 0 : Math.round((completed / total) * 100);
-    return { total, completed, pending, progressPercent };
+      total === 0 ? 0 : Math.round((counts.done / total) * 100);
+    return {
+      total,
+      todo: counts.todo,
+      inProgress: counts.in_progress,
+      inReview: counts.in_review,
+      completed: counts.done,
+      progressPercent,
+    };
   }, [tasks]);
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   const handleConfirmDelete = async () => {
     if (!deleteTaskTarget) return;
@@ -67,6 +141,7 @@ export default function Dashboard() {
 
     try {
       await deletePromise;
+      if (drawerTaskId === deleteTaskTarget._id) closeDrawer();
       setDeleteTaskTarget(null);
     } catch {
       // Handled by toast.promise
@@ -74,84 +149,85 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-[#14151A] font-sans antialiased selection:bg-[#2F5DFF] selection:text-white">
-      <Navbar onOpenTaskModal={() => setIsTaskModalOpen(true)} />
+    <AppShell
+      title="Overview"
+      showSearch
+      onCreateTask={() => openCreate()}
+    >
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-ink-900">
+            {greeting}
+            {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+          </h2>
+          <p className="text-sm text-ink-400">
+            {today} · {currentWorkspace ? currentWorkspace.name : "Personal tasks"}
+          </p>
+        </div>
+        <ViewSwitcher
+          value={viewMode}
+          onChange={(v) => dispatch(setViewMode(v))}
+        />
+      </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
         <StatsGrid stats={stats} />
-        <FilterBar onOpenCategoryModal={() => setIsCategoryModalOpen(true)} />
+        <FilterBar
+          onOpenCategoryModal={() => setIsCategoryModalOpen(true)}
+          hideStatus={viewMode !== "list"}
+        />
 
         {isLoading && tasks.length === 0 ? (
           <div className="py-28 flex flex-col items-center gap-3">
             <PulseMark variant="loading" className="w-32 h-7" />
-            <p className="text-xs text-[#8B8D98] font-medium">
+            <p className="text-xs text-ink-400 font-medium">
               Loading your tasks…
             </p>
           </div>
+        ) : viewMode === "calendar" ? (
+          <CalendarView
+            tasks={tasks}
+            onOpenTask={setOpenTaskId}
+            onCreateOnDate={openCreate}
+          />
+        ) : viewMode === "board" ? (
+          <KanbanBoard tasks={tasks} onOpenTask={(t) => setOpenTaskId(t._id)} />
         ) : tasks.length === 0 ? (
-          <div className="bg-[#FAFAF8] rounded-2xl border border-dashed border-[#D8D8D2] py-20 text-center">
-            <div className="w-11 h-11 rounded-xl bg-[#EEF2FF] text-[#2F5DFF] flex items-center justify-center mx-auto mb-3 border border-[#DCE3FF]">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-            </div>
-            <p className="text-[#14151A] font-semibold text-sm">No tasks yet</p>
-            <p className="text-[#8B8D98] text-xs mt-1">
-              Create your first task to start tracking your work.
-            </p>
-            <button
-              onClick={() => setIsTaskModalOpen(true)}
-              className="mt-4 inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition cursor-pointer"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.5"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              New Task
-            </button>
-          </div>
+          <EmptyState
+            icon={ClipboardList}
+            title="No tasks here"
+            description="Create a task, or adjust your filters if you expected to see some."
+            action={
+              <Button icon={Plus} onClick={() => setIsTaskModalOpen(true)}>
+                New Task
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-2.5">
             {tasks.map((task) => (
               <TaskItem
                 key={task._id}
                 task={task}
-                isExpanded={expandedTaskId === task._id}
-                onToggleExpand={() =>
-                  setExpandedTaskId(
-                    expandedTaskId === task._id ? null : task._id,
-                  )
-                }
+                onOpen={(t) => setOpenTaskId(t._id)}
                 onEdit={(t) => setEditingTask(t)}
                 onRequestDelete={(t) => setDeleteTaskTarget(t)}
               />
             ))}
           </div>
         )}
-      </main>
-
+      {drawerTaskId && (
+        <TaskDrawer
+          taskId={drawerTaskId}
+          onClose={closeDrawer}
+          onEdit={(t) => setEditingTask(t)}
+          onRequestDelete={(t) => setDeleteTaskTarget(t)}
+        />
+      )}
       <CreateTaskModal
+        key={createSeed.n}
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
+        initialDueDate={createSeed.date}
       />
       <EditTaskModal
         isOpen={Boolean(editingTask)}
@@ -168,6 +244,6 @@ export default function Dashboard() {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTaskTarget(null)}
       />
-    </div>
+    </AppShell>
   );
 }
