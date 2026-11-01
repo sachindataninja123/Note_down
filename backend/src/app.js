@@ -25,10 +25,10 @@ app.use(morgan("dev"));
 app.use(
   cors({
     // origin:"https://note-down-1-8smd.onrender.com",
-    origin:process.env.CORS_ORIGIN,
+    origin : process.env.CORS_ORIGIN,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Socket-Id"],
   }),
 );
 

@@ -51,7 +51,18 @@ export const markAllNotificationsAsRead = createAsyncThunk(
 export const notificationSlice = createSlice({
   name: "notifications",
   initialState,
-  reducers: {},
+  reducers: {
+    // Pushed by the socket. De-duplicated by id: the same notification can
+    // arrive over the socket AND in a REST refresh.
+    notificationReceived: (state, action) => {
+      const incoming = action.payload;
+      if (!incoming?._id) return;
+      if (state.notifications.some((n) => n._id === incoming._id)) return;
+      state.notifications.unshift(incoming);
+      if (state.notifications.length > 30) state.notifications.length = 30;
+      if (!incoming.isRead) state.unreadCount += 1;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchNotifications.pending, (state) => {
@@ -82,4 +93,5 @@ export const notificationSlice = createSlice({
   },
 });
 
+export const { notificationReceived } = notificationSlice.actions;
 export default notificationSlice.reducer;

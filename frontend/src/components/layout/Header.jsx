@@ -6,6 +6,7 @@ import { LogOut, Menu, Plus, Search, User } from "lucide-react";
 import { setSearchQuery } from "../../features/tasks/taskSlice";
 import { logout } from "../../features/auth/authSlice";
 import NotificationDropdown from "../dashboard/NotificationDropdown";
+import LiveStatus from "./LiveStatus";
 import Button from "../ui/Button";
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -112,6 +113,7 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
           </Button>
         )}
 
+        <LiveStatus />
         <NotificationDropdown />
 
         <div ref={profileRef} className="relative">

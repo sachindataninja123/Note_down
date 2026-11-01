@@ -11,9 +11,9 @@ import {
   setCachedTasks,
   invalidateTaskCache,
 } from "../utils/taskCache.js";
-import Notification from "../models/notification.model.js";
 import Workspace from "../models/workspace.model.js";
-import { invalidateNotificationCache } from "../utils/notificationCache.js";
+import { createNotification } from "../utils/notify.js";
+import { emitTaskEvent } from "../utils/realtime.js";
 import {
   assertValidStatus,
   buildStatusCondition,
@@ -94,6 +94,7 @@ export const createTask = asyncHandler(async (req, res) => {
   });
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
 
   await logTaskActivity({
     task,
@@ -109,14 +110,14 @@ export const createTask = asyncHandler(async (req, res) => {
 
   for (const userId of validAssignees) {
     if (userId.toString() === req.user._id.toString()) continue;
-    await Notification.create({
+    await createNotification({
       recipient: userId,
       task: task._id,
       title: "Task assigned to you",
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
+      dedupeWindowMs: 2 * 60 * 1000,
     });
-    await invalidateNotificationCache(userId.toString()); // NEW
   }
 
   return res
@@ -256,6 +257,7 @@ export const updateTask = asyncHandler(async (req, res) => {
     .populate("assignedTo", "name email avatar");
 
   await invalidateTaskCache(scopeFromTask(updatedTask));
+  emitTaskEvent(req, updatedTask, "task:upserted");
 
   for (const event of diffTaskUpdate(before, updates)) {
     await logTaskActivity({ task: updatedTask, actor: req.user, ...event });
@@ -279,6 +281,7 @@ export const toggleTaskStatus = asyncHandler(async (req, res) => {
   await task.save();
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
   await logTaskActivity({
     task,
     actor: req.user,
@@ -313,6 +316,7 @@ export const updateTaskStatus = asyncHandler(async (req, res) => {
     task.status = status;
     await task.save();
     await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
     await logTaskActivity({
       task,
       actor: req.user,
@@ -360,6 +364,7 @@ export const deleteTask = asyncHandler(async (req, res) => {
   await Task.findByIdAndDelete(id);
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:deleted");
   // History is kept after deletion; details.taskTitle says what it was.
   await logTaskActivity({ task, actor: req.user, action: "task.deleted" });
 
@@ -409,6 +414,7 @@ export const assignTask = asyncHandler(async (req, res) => {
   ]);
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
 
   // Notify newly-added assignees only (not people already assigned)
   const newlyAssigned = userIds.filter(
@@ -441,14 +447,14 @@ export const assignTask = asyncHandler(async (req, res) => {
   }
   for (const userId of newlyAssigned) {
     if (userId.toString() === req.user._id.toString()) continue;
-    await Notification.create({
+    await createNotification({
       recipient: userId,
       task: task._id,
       title: "Task assigned to you",
       message: `${req.user.name} assigned you to "${task.title}"`,
       type: "ASSIGNED",
+      dedupeWindowMs: 2 * 60 * 1000,
     });
-    await invalidateNotificationCache(userId.toString());
   }
 
   return res
@@ -477,6 +483,7 @@ export const addSubtask = asyncHandler(async (req, res) => {
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
   await logTaskActivity({
     task,
     actor: req.user,
@@ -506,6 +513,7 @@ export const toggleSubtask = asyncHandler(async (req, res) => {
   await task.save();
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
   await logTaskActivity({
     task,
     actor: req.user,
@@ -537,6 +545,7 @@ export const deleteSubtask = asyncHandler(async (req, res) => {
   ).populate("category", "name color icon");
 
   await invalidateTaskCache(scopeFromTask(task));
+  emitTaskEvent(req, task, "task:upserted");
   if (removedSubtaskTitle) {
     await logTaskActivity({
       task,

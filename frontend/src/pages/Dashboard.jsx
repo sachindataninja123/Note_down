@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { fetchTasks, removeTask, setViewMode } from "../features/tasks/taskSlice";
@@ -36,6 +37,15 @@ export default function Dashboard() {
   const [editingTask, setEditingTask] = useState(null);
   const [deleteTaskTarget, setDeleteTaskTarget] = useState(null);
   const [openTaskId, setOpenTaskId] = useState(null);
+  // `?task=<id>` comes from clicking a notification. The drawer opens as soon
+  // as that task is in the loaded list (it may first need its workspace's
+  // tasks to load); derived, so no state is set in an effect.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get("task");
+  const requestedIsLoaded = Boolean(
+    requestedTaskId && tasks.some((t) => t._id === requestedTaskId),
+  );
+  const drawerTaskId = openTaskId || (requestedIsLoaded ? requestedTaskId : null);
   // `n` changes only when a date is chosen, so CreateTaskModal remounts and
   // starts with that due date; a plain "New Task" keeps any unsaved draft.
   const [createSeed, setCreateSeed] = useState({ date: "", n: 0 });
@@ -46,7 +56,35 @@ export default function Dashboard() {
     }
     setIsTaskModalOpen(true);
   };
-  const closeDrawer = useCallback(() => setOpenTaskId(null), []);
+  const closeDrawer = useCallback(() => {
+    setOpenTaskId(null);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("task");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  // If the requested task never shows up (deleted, or hidden by a filter),
+  // say so instead of doing nothing.
+  useEffect(() => {
+    if (!requestedTaskId || requestedIsLoaded) return undefined;
+    const timer = setTimeout(() => {
+      toast.error("Couldn't find that task in this view. It may be deleted or filtered out.");
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("task");
+          return next;
+        },
+        { replace: true },
+      );
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [requestedTaskId, requestedIsLoaded, setSearchParams]);
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -103,7 +141,7 @@ export default function Dashboard() {
 
     try {
       await deletePromise;
-      if (openTaskId === deleteTaskTarget._id) setOpenTaskId(null);
+      if (drawerTaskId === deleteTaskTarget._id) closeDrawer();
       setDeleteTaskTarget(null);
     } catch {
       // Handled by toast.promise
@@ -177,9 +215,9 @@ export default function Dashboard() {
             ))}
           </div>
         )}
-      {openTaskId && (
+      {drawerTaskId && (
         <TaskDrawer
-          taskId={openTaskId}
+          taskId={drawerTaskId}
           onClose={closeDrawer}
           onEdit={(t) => setEditingTask(t)}
           onRequestDelete={(t) => setDeleteTaskTarget(t)}

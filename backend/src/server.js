@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
+import http from "http";
 import app from "./app.js";
+import { initSocket } from "./socket/index.js";
 import connectToDB from "./db/db.js";
 import { initReminderCron } from "./cron/reminderJob.js";
 import Task from "./models/task.model.js";
@@ -31,7 +33,11 @@ const start = async () => {
 
   initReminderCron();
 
-  app.listen(PORT, () => {
+  // Socket.IO shares the HTTP server; REST keeps working if it never connects.
+  const server = http.createServer(app);
+  initSocket(server);
+
+  server.listen(PORT, () => {
     console.log(`Server is running on ${PORT}`);
   });
 };

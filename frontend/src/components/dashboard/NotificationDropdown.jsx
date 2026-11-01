@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
+import { getStatus, subscribeStatus } from "../../lib/socket";
+import { setCurrentWorkspace } from "../../features/workspaces/workspaceSlice";
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -10,14 +13,23 @@ import {
 export default function NotificationDropdown() {
   const dispatch = useDispatch();
   const { notifications, unreadCount } = useSelector((state) => state.notifications);
+  const { workspaces, currentWorkspace } = useSelector((state) => state.workspaces);
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const socketStatus = useSyncExternalStore(subscribeStatus, getStatus);
+  const live = socketStatus === "live";
 
+  // Live: the socket pushes new ones, so this only re-syncs every 5 minutes.
+  // Not live: poll every minute (the old behaviour).
   useEffect(() => {
     dispatch(fetchNotifications());
-    const interval = setInterval(() => dispatch(fetchNotifications()), 60000);
+    const interval = setInterval(
+      () => dispatch(fetchNotifications()),
+      live ? 300000 : 60000,
+    );
     return () => clearInterval(interval);
-  }, [dispatch]);
+  }, [dispatch, live]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -36,13 +48,30 @@ export default function NotificationDropdown() {
     };
   }, []);
 
-  const handleMarkRead = async (id, title) => {
-    try {
-      await dispatch(markNotificationAsRead(id)).unwrap();
-      toast.success(`Marked "${title}" as read`);
-    } catch (err) {
-      toast.error(err || "Failed to update notification");
+  // Opens the thing the notification is about: switches to the task's
+  // workspace if needed, then the dashboard opens the task's drawer.
+  const handleOpen = async (n) => {
+    if (!n.isRead) {
+      dispatch(markNotificationAsRead(n._id))
+        .unwrap()
+        .catch(() => {});
     }
+    if (!n.task) {
+      toast.error("That task no longer exists");
+      return;
+    }
+    const targetId = n.task.workspace || null;
+    const currentId = currentWorkspace?._id || null;
+    if (targetId !== currentId) {
+      const target = targetId ? workspaces.find((w) => w._id === targetId) : null;
+      if (targetId && !target) {
+        toast.error("You no longer have access to that workspace");
+        return;
+      }
+      dispatch(setCurrentWorkspace(target));
+    }
+    setIsOpen(false);
+    navigate(`/?task=${n.task._id}`);
   };
 
   const handleMarkAllRead = async () => {
@@ -59,7 +88,7 @@ export default function NotificationDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2.5 rounded-lg bg-[#F7F7F5] border border-transparent text-[#63656F] hover:text-[#14151A] hover:border-[#ECECE6] transition cursor-pointer"
+        className="relative p-2.5 rounded-lg bg-[#F7F7F5] border border-transparent text-[#63656F] hover:text-ink-900 hover:border-line transition cursor-pointer"
         title="Notifications"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,10 +102,10 @@ export default function NotificationDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-80 sm:w-96 rounded-2xl bg-white border border-[#ECECE6] shadow-[0_20px_60px_-15px_rgba(20,21,26,0.25)] p-4 z-50 animate-[modalIn_0.15s_ease-out]">
-          <div className="flex items-center justify-between pb-3 border-b border-[#ECECE6]">
+        <div className="absolute right-0 mt-2.5 w-80 sm:w-96 rounded-2xl bg-white border border-line shadow-[0_20px_60px_-15px_rgba(20,21,26,0.25)] p-4 z-50 animate-[modalIn_0.15s_ease-out]">
+          <div className="flex items-center justify-between pb-3 border-b border-line">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-[#14151A]">Notifications</span>
+              <span className="text-sm font-semibold text-ink-900">Notifications</span>
               {unreadCount > 0 && (
                 <span className="text-[10px] bg-[#EEF2FF] text-[#2F5DFF] font-semibold px-2 py-0.5 rounded-full border border-[#DCE3FF]">
                   {unreadCount} new
@@ -102,16 +131,24 @@ export default function NotificationDropdown() {
               notifications.map((n) => (
                 <div
                   key={n._id}
-                  onClick={() => !n.isRead && handleMarkRead(n._id, n.title)}
-                  className={`p-3 rounded-xl border transition cursor-pointer flex items-start justify-between gap-3 ${
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleOpen(n)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleOpen(n);
+                    }
+                  }}
+                  className={`p-3 rounded-xl border transition cursor-pointer flex items-start justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 ${
                     n.isRead
-                      ? "bg-white border-[#ECECE6] text-[#8B8D98]"
-                      : "bg-[#FAFAF8] border-[#DCE3FF] text-[#14151A]"
+                      ? "bg-white border-line text-ink-400"
+                      : "bg-[#FAFAF8] border-[#DCE3FF] text-ink-900"
                   }`}
                 >
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold">{n.title}</p>
-                    <p className="text-[11px] text-[#8B8D98] leading-relaxed">{n.message}</p>
+                    <p className="text-[11px] text-ink-400 leading-relaxed">{n.message}</p>
                     <span className="text-[9px] text-[#B4B5BD] block pt-1 font-mono">
                       {new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>

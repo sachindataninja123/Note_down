@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Workspace from "../models/workspace.model.js";
 import Task from "../models/task.model.js";
+import { ejectFromWorkspace, emitWorkspaceChanged } from "../utils/realtime.js";
 import Notification from "../models/notification.model.js";
 import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -78,10 +79,7 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
 
   const workspace = await Workspace.findOne({ _id: id, owner: req.user._id });
   if (!workspace) {
-    throw new ApiError(
-      403,
-      "Only the workspace owner can delete this workspace",
-    );
+    throw new ApiError(403, "Only the workspace owner can delete this workspace");
   }
 
   const workspaceTasks = await Task.find({ workspace: id }, "_id");
@@ -108,6 +106,7 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
     ...workspace.members.map((m) => m.user.toString()),
   ];
   await invalidateWorkspaceCacheForUsers(affectedUserIds);
+  for (const uid of affectedUserIds) ejectFromWorkspace(uid, id);
 
   return res
     .status(200)
@@ -115,8 +114,8 @@ export const deleteWorkspace = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         { workspaceId: id, tasksDeleted: taskIds.length },
-        "Workspace and its tasks deleted successfully",
-      ),
+        "Workspace and its tasks deleted successfully"
+      )
     );
 });
 
@@ -132,20 +131,13 @@ export const removeMember = asyncHandler(async (req, res) => {
   if (!workspace) throw new ApiError(403, "Only the owner can remove members");
 
   if (memberId === req.user._id.toString()) {
-    throw new ApiError(
-      400,
-      "The owner cannot be removed. Delete the workspace instead.",
-    );
+    throw new ApiError(400, "The owner cannot be removed. Delete the workspace instead.");
   }
 
   const removedUser = await User.findById(memberId, "name").lean();
-  const wasMember = workspace.members.some(
-    (m) => m.user.toString() === memberId,
-  );
+  const wasMember = workspace.members.some((m) => m.user.toString() === memberId);
 
-  workspace.members = workspace.members.filter(
-    (m) => m.user.toString() !== memberId,
-  );
+  workspace.members = workspace.members.filter((m) => m.user.toString() !== memberId);
   await workspace.save();
 
   if (wasMember) {
@@ -164,11 +156,10 @@ export const removeMember = asyncHandler(async (req, res) => {
   // NEW: invalidate both the owner's cache (member list changed) and the
   // removed member's cache (this workspace disappears from their list).
   await invalidateWorkspaceCacheForUsers([req.user._id.toString(), memberId]);
+  ejectFromWorkspace(memberId, workspace._id);
+  emitWorkspaceChanged(workspace._id, "members");
 
-  const populated = await workspace.populate(
-    "members.user",
-    "name email avatar",
-  );
+  const populated = await workspace.populate("members.user", "name email avatar");
 
   return res
     .status(200)

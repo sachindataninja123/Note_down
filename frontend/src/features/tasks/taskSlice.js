@@ -25,32 +25,61 @@ const initialState = {
   pendingMoves: {},
 };
 
+// Query params for the current filters / workspace. Shared by the normal
+// fetch and the silent real-time refresh so both ask for exactly the same list.
+const buildTaskParams = (state) => {
+  const { statusFilter, searchQuery, assignedToMe, viewMode } = state.tasks;
+  const { selectedCategory } = state.categories;
+  const { currentWorkspace } = state.workspaces;
+
+  const params = {};
+  // Board and Calendar need every status, so the status filter only
+  // applies to the List view.
+  if (viewMode === "list" && statusFilter !== "all")
+    params.status = statusFilter;
+  if (selectedCategory && selectedCategory !== "All")
+    params.category = selectedCategory;
+  if (searchQuery.trim()) params.search = searchQuery.trim();
+  if (assignedToMe) params.assignedToMe = "true"; // NEW
+
+  params.workspace = currentWorkspace?._id ? currentWorkspace._id : "personal";
+  return params;
+};
+
 export const fetchTasks = createAsyncThunk(
   "tasks/fetchAll",
   async (_, thunkAPI) => {
     try {
-      const state = thunkAPI.getState();
-      const { statusFilter, searchQuery, assignedToMe, viewMode } = state.tasks;
-      const { selectedCategory } = state.categories;
-      const { currentWorkspace } = state.workspaces;
+      return await taskService.getTasks(buildTaskParams(thunkAPI.getState()));
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message,
+      );
+    }
+  },
+);
 
-      const params = {};
-      // Board and Calendar need every status, so the status filter only
-      // applies to the List view.
-      if (viewMode === "list" && statusFilter !== "all")
-        params.status = statusFilter;
-      if (selectedCategory && selectedCategory !== "All")
-        params.category = selectedCategory;
-      if (searchQuery.trim()) params.search = searchQuery.trim();
-      if (assignedToMe) params.assignedToMe = "true"; // NEW
+// Silent re-fetch used when a real-time event (or a reconnect) says the list
+// may be out of date. No loading flag, and it never overwrites the list while
+// this user has a change in flight or after the view has changed underneath it.
+export const refreshTasks = createAsyncThunk(
+  "tasks/refresh",
+  async (_, thunkAPI) => {
+    const before = thunkAPI.getState();
+    const busy = (s) =>
+      Object.keys(s.tasks.updatingTasks).length > 0 ||
+      Object.keys(s.tasks.pendingMoves).length > 0;
+    if (busy(before)) return { skipped: "busy" };
 
-      if (currentWorkspace?._id) {
-        params.workspace = currentWorkspace._id;
-      } else {
-        params.workspace = "personal";
-      }
-
-      return await taskService.getTasks(params);
+    const params = buildTaskParams(before);
+    try {
+      const result = await taskService.getTasks(params);
+      const after = thunkAPI.getState();
+      if (busy(after)) return { skipped: "busy" };
+      const sameView =
+        JSON.stringify(buildTaskParams(after)) === JSON.stringify(params);
+      if (!sameView) return { skipped: "stale" };
+      return result;
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data?.message || error.message,
@@ -261,6 +290,10 @@ export const taskSlice = createSlice({
       })
       .addCase(fetchTasks.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.tasks = action.payload.data || [];
+      })
+      .addCase(refreshTasks.fulfilled, (state, action) => {
+        if (action.payload?.skipped) return;
         state.tasks = action.payload.data || [];
       })
       .addCase(fetchTasks.rejected, (state, action) => {

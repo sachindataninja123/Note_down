@@ -18,7 +18,20 @@ const markAllAsRead = async () => {
   return response.data;
 };
 
+// GET / PATCH /api/v1/notifications/preferences
+const getPreferences = async () => {
+  const response = await api.get("/notifications/preferences");
+  return response.data;
+};
+
+const updatePreferences = async (changes) => {
+  const response = await api.patch("/notifications/preferences", changes);
+  return response.data;
+};
+
 const notificationService = {
+  getPreferences,
+  updatePreferences,
   getNotifications,
   markAsRead,
   markAllAsRead,

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSocketId } from "../lib/socket";
 
 const API_BASE_URL =
   import.meta.env.VITE_BACKEND_URL ||
@@ -10,6 +11,12 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+api.interceptors.request.use((config) => {
+  const socketId = getSocketId();
+  if (socketId) config.headers["X-Socket-Id"] = socketId;
+  return config;
 });
 
 api.interceptors.response.use(

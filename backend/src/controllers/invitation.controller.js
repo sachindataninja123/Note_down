@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import mongoose from "mongoose";
 import Invitation from "../models/invitation.model.js";
+import { emitWorkspaceChanged } from "../utils/realtime.js";
 import Workspace from "../models/workspace.model.js";
 import User from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -212,6 +213,7 @@ export const acceptInvite = asyncHandler(async (req, res) => {
 
   invitation.status = "accepted";
   await invitation.save();
+  emitWorkspaceChanged(workspace._id, "members");
 
   const populated = await workspace.populate(
     "members.user",

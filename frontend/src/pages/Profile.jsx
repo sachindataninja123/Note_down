@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import AppShell from "../components/layout/AppShell";
 import toast from "react-hot-toast";
 import { changePassword } from "../features/auth/authSlice";
+import NotificationPreferences from "../components/settings/NotificationPrefrences";
 
 export default function Profile() {
   const dispatch = useDispatch();
@@ -114,6 +115,8 @@ export default function Profile() {
             </div>
           </div>
         </section>
+
+        <NotificationPreferences />
 
         {/* Change Password Card */}
         <section className="bg-white rounded-3xl border border-line p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6">

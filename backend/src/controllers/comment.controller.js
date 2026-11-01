@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 import Comment from "../models/comment.model.js";
-import Notification from "../models/notification.model.js";
+import { createNotification } from "../utils/notify.js";
+import { emitTaskEvent } from "../utils/realtime.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { getAccessibleTask } from "../utils/taskAccess.js";
 import Workspace from "../models/workspace.model.js";
-import { invalidateNotificationCache } from "../utils/notificationCache.js"; // NEW
 import { logTaskActivity } from "../utils/activity.js";
 
 const resolveMentions = async (text, workspaceId) => {
@@ -55,6 +55,7 @@ export const addComment = asyncHandler(async (req, res) => {
   });
 
   const populated = await comment.populate("author", "name email avatar");
+  emitTaskEvent(req, task, "comment:changed");
 
   // No comment text in the log: the comment thread is the source of truth.
   await logTaskActivity({ task, actor: req.user, action: "comment.added" });
@@ -62,14 +63,13 @@ export const addComment = asyncHandler(async (req, res) => {
   // Notify mentioned users (skip notifying yourself)
   for (const userId of mentions) {
     if (userId.toString() === req.user._id.toString()) continue;
-    await Notification.create({
+    await createNotification({
       recipient: userId,
       task: taskId,
       title: "You were mentioned",
       message: `${req.user.name} mentioned you in "${task.title}"`,
       type: "MENTION",
     });
-    await invalidateNotificationCache(userId.toString()); // NEW
   }
 
   // Notify the task assignee(s) too, if they didn't write the comment
@@ -82,14 +82,13 @@ export const addComment = asyncHandler(async (req, res) => {
       );
       if (isAuthor || alreadyMentioned) continue;
 
-      await Notification.create({
+      await createNotification({
         recipient: assigneeId,
         task: taskId,
         title: "New comment",
         message: `${req.user.name} commented on "${task.title}"`,
         type: "COMMENT",
       });
-      await invalidateNotificationCache(assigneeId.toString()); // NEW
     }
   }
 
@@ -132,6 +131,9 @@ export const deleteComment = asyncHandler(async (req, res) => {
   }
 
   await Comment.findByIdAndDelete(commentId);
+
+  const parentTask = await getAccessibleTask(taskId, req.user);
+  if (parentTask) emitTaskEvent(req, parentTask, "comment:changed");
 
   return res
     .status(200)

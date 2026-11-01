@@ -16,7 +16,8 @@ import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import InviteAccept from "./pages/InviteAccept";
 import Activity from "./pages/Activity";
-import Analytics from "./pages/Analytics.jsx";
+import Analytics from "./pages/Analytics";
+import RealtimeBridge from "./components/RealtimeBridge";
 
 export default function App() {
   const dispatch = useDispatch();
@@ -27,6 +28,7 @@ export default function App() {
 
   return (
     <>
+      <RealtimeBridge />
       <Routes>
         <Route
           path="/login"
