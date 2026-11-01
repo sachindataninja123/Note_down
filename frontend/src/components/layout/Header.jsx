@@ -15,7 +15,12 @@ const SEARCH_DEBOUNCE_MS = 400;
  * Task search (debounced into Redux) and the create button only render when
  * the page supplies them, so pages like Settings don't show dead controls.
  */
-export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) {
+export default function Header({
+  title,
+  onOpenMenu,
+  onCreateTask,
+  showSearch,
+}) {
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth.user);
   const currentWorkspace = useSelector((s) => s.workspaces.currentWorkspace);
@@ -28,13 +33,20 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
 
   useEffect(() => {
     if (!showSearch) return;
-    const t = setTimeout(() => dispatch(setSearchQuery(searchInput)), SEARCH_DEBOUNCE_MS);
+    const t = setTimeout(
+      () => dispatch(setSearchQuery(searchInput)),
+      SEARCH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(t);
   }, [searchInput, showSearch, dispatch]);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (showSearch && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (
+        showSearch &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "k"
+      ) {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -47,7 +59,8 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) setMenuOpen(false);
+      if (profileRef.current && !profileRef.current.contains(e.target))
+        setMenuOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -56,7 +69,13 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
   const name = user?.name;
   const initials = useMemo(() => {
     if (!name) return "TP";
-    return name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+    return name
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
   }, [name]);
 
   const handleLogout = () => {
@@ -117,16 +136,33 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
         <NotificationDropdown />
 
         <div ref={profileRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label="Account menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-brand-600 to-brand-500 text-[11px] font-bold text-white cursor-pointer"
-          >
-            {initials}
-          </button>
+          {user?.profilePic?.url ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Account menu"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-brand-600 to-brand-500 text-[11px] font-bold text-white cursor-pointer"
+            >
+              <img
+                src={user.profilePic.url}
+                alt="Profile"
+                className="h-full w-full object-cover rounded-full"
+              />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Account menu"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-brand-600 to-brand-500 text-[11px] font-bold text-white cursor-pointer"
+            >
+              {initials}
+            </button>
+          )}
 
           {menuOpen && (
             <div
@@ -134,8 +170,12 @@ export default function Header({ title, onOpenMenu, onCreateTask, showSearch }) 
               className="absolute right-0 top-[calc(100%+10px)] z-50 w-60 rounded-2xl border border-line bg-surface p-2 shadow-pop"
             >
               <div className="rounded-xl bg-canvas p-3">
-                <p className="truncate text-[12px] font-bold text-ink-900">{user?.name || "User"}</p>
-                <p className="truncate text-[10px] text-ink-400">{user?.email}</p>
+                <p className="truncate text-[12px] font-bold text-ink-900">
+                  {user?.name || "User"}
+                </p>
+                <p className="truncate text-[10px] text-ink-400">
+                  {user?.email}
+                </p>
               </div>
               <Link
                 to="/profile"

@@ -32,6 +32,17 @@ const userSchema = new mongoose.Schema(
       DUE_SOON: { type: Boolean, default: true },
     },
 
+    profilePic: {
+      url: {
+        type: String,
+        default: "",
+      },
+      publicId: {
+        type: String,
+        default: "",
+      },
+    },
+
     resetOtp: {
       type: String,
       default: null,

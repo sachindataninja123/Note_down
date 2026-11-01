@@ -1,13 +1,23 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import AppShell from "../components/layout/AppShell";
 import toast from "react-hot-toast";
-import { changePassword } from "../features/auth/authSlice";
+import {
+  changePassword,
+  deleteProfileImg,
+  updateProfileImg,
+} from "../features/auth/authSlice";
 import NotificationPreferences from "../components/settings/NotificationPrefrences";
 
 export default function Profile() {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const fileInputRef = useRef(null);
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const profileImage = user?.profilePic?.url;
 
   const [passwordData, setPasswordData] = useState({
     oldPassword: "",
@@ -60,7 +70,7 @@ export default function Profile() {
 
     setIsSubmitting(true);
     const promise = dispatch(
-      changePassword({ oldPassword, newPassword })
+      changePassword({ oldPassword, newPassword }),
     ).unwrap();
 
     toast.promise(promise, {
@@ -83,36 +93,153 @@ export default function Profile() {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Only PNG, JPG, WEBP and GIF images are allowed");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size cannot exceed 5MB");
+      e.target.value = "";
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("profilePic", file);
+    try {
+      setIsUploading(true);
+      await dispatch(updateProfileImg(formData)).unwrap();
+      toast.success("Profile image updated successfully");
+    } catch (error) {
+      toast.error(
+        typeof error === "string" ? error : "Failed to update profile image",
+      );
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    try {
+      setIsDeleting(true);
+      await dispatch(deleteProfileImg()).unwrap();
+      toast.success("Profile image removed successfully");
+    } catch (error) {
+      toast.error(
+        typeof error === "string" ? error : "Failed to delete profile image",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <AppShell title="Settings">
       {/* Main Container */}
       <div className="max-w-4xl space-y-6 sm:space-y-8">
-        
         {/* User Profile Header Card */}
+
         <section className="bg-white rounded-3xl border border-line p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6 text-center sm:text-left">
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-linear-to-br from-[#432DD7] to-[#6654E8] flex items-center justify-center text-white text-2xl sm:text-3xl font-extrabold shadow-lg shadow-[#432DD7]/20 shrink-0">
-            {getInitials(user?.name)}
+          {/* Profile Image */}
+
+          <div className="relative shrink-0">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl overflow-hidden bg-linear-to-br from-[#432DD7] to-[#6654E8] flex items-center justify-center text-white text-2xl sm:text-3xl font-extrabold shadow-lg shadow-[#432DD7]/20">
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                getInitials(user?.name)
+              )}
+            </div>
+
+            {/* Active Status */}
+
             <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-3 border-white" />
           </div>
+
+          {/* User Information */}
 
           <div className="space-y-1.5 flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink-900 truncate">
                 {user?.name || "TaskPulse User"}
               </h1>
+
               <span className="inline-flex self-center sm:self-auto items-center px-2 py-0.5 rounded-md bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-wider border border-brand-100">
                 Active Member
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-ink-400 truncate">{user?.email}</p>
+
+            <p className="text-xs sm:text-sm text-ink-400 truncate">
+              {user?.email}
+            </p>
+
             <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-2">
               <span className="text-[11px] font-medium bg-[#F7F7F5] border border-line text-[#63656F] px-2.5 py-1 rounded-lg">
                 Personal Space
               </span>
+
               <span className="text-[11px] font-medium bg-[#F7F7F5] border border-line text-[#63656F] px-2.5 py-1 rounded-lg">
                 JWT Authenticated
               </span>
             </div>
+
+            {/* Profile Image Actions */}
+
+            <div className="pt-4 flex flex-wrap justify-center sm:justify-start gap-3">
+              {/* Upload / Change Button */}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || isDeleting}
+                className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-[#3521B5] text-white text-xs font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading
+                  ? "Uploading..."
+                  : profileImage
+                    ? "Change Photo"
+                    : "Upload Photo"}
+              </button>
+
+              {/* Delete Button */}
+
+              {profileImage && (
+                <button
+                  type="button"
+                  onClick={handleDeleteImage}
+                  disabled={isUploading || isDeleting}
+                  className="px-4 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? "Removing..." : "Remove Photo"}
+                </button>
+              )}
+            </div>
+
+            <p className="text-[10px] text-ink-400 pt-1">
+              PNG, JPG, WEBP or GIF · Maximum size 5MB
+            </p>
           </div>
         </section>
 
@@ -123,13 +250,27 @@ export default function Profile() {
           <div className="border-b border-line pb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-brand-600 flex items-center justify-center font-bold">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
                 </svg>
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-ink-900">Security & Password</h2>
-                <p className="text-xs text-ink-400">Update your password to keep your account safe.</p>
+                <h2 className="text-base sm:text-lg font-bold text-ink-900">
+                  Security & Password
+                </h2>
+                <p className="text-xs text-ink-400">
+                  Update your password to keep your account safe.
+                </p>
               </div>
             </div>
           </div>
