@@ -92,7 +92,7 @@ export default function Header({
         aria-label="Open menu"
         className="rounded-xl p-2 text-ink-600 hover:bg-canvas lg:hidden cursor-pointer"
       >
-        <Menu size={20} />
+        <Menu size={21} strokeWidth={2} />
       </button>
 
       <div className="min-w-0">
