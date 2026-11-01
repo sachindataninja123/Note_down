@@ -33,7 +33,7 @@ export default function AppShell({ title, onCreateTask, showSearch = false, chil
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-pop">
-            <Sidebar
+            <SideBar
               onManageWorkspaces={() => setWorkspaceModalOpen(true)}
               onNavigate={() => setDrawerOpen(false)}
               onClose={() => setDrawerOpen(false)}
