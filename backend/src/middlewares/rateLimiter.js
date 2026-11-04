@@ -17,9 +17,9 @@ const buildLimiter = ({ windowMs, max, message }) =>
 
 // Tight limit on login/register — this is the brute-force protection.
 export const authLimiter = buildLimiter({
-  windowMs: 10 * 60 * 1000, // 10 minutes
+  windowMs: 5 * 60 * 1000, // 5 minutes
   max: 10, // 10 attempts per IP per window
-  message: "Too many attempts. Please try again in 10 minutes.",
+  message: "Too many attempts. Please try again in 5 minutes.",
 });
 
 export const apiLimiter = buildLimiter({
